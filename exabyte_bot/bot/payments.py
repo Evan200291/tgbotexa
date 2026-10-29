@@ -23,6 +23,8 @@ from .messages import (
     format_order_message,
     format_plans_message,
     order_created_kb,
+    plan_mode_kb,
+    plan_server_kb,
     plans_kb,
     status_label,
 )
@@ -38,26 +40,21 @@ class PaymentStates(StatesGroup):
 def build_payments_router() -> Router:
     r = Router(name="payments")
 
-    @r.callback_query(F.data == "nav:plans")
-    async def cb_plans(cb: CallbackQuery, bot: Bot) -> None:
-        await cb.answer()
-        chat_id = cb.message.chat.id if cb.message else cb.from_user.id
-        await bot.send_message(
-            chat_id, format_plans_message(), parse_mode="HTML", reply_markup=plans_kb()
-        )
-
-    @r.callback_query(F.data.startswith("plan:"))
-    async def cb_select_plan(
-        cb: CallbackQuery, svc: Service, settings: Settings, state: FSMContext, bot: Bot
+    async def _finalize_order_creation(
+        chat_id: int,
+        uid: int,
+        plan_id: str,
+        target_sub_id: int | None,
+        panel_id: int,
+        svc: Service,
+        settings: Settings,
+        state: FSMContext,
+        bot: Bot,
     ) -> None:
-        await cb.answer()
-        plan_id = (cb.data or "").split(":", 1)[1]
-        if get_plan(plan_id) is None:
-            return
-        uid = cb.from_user.id
-        chat_id = cb.message.chat.id if cb.message else uid
         try:
-            order = await svc.create_order(uid, plan_id)
+            order = await svc.create_order(
+                uid, plan_id, target_sub_id=target_sub_id, panel_id=panel_id
+            )
         except OpenOrderExists as e:
             open_ord = await svc.open_order(uid)
             kb = order_created_kb(open_ord.code) if open_ord else back_home_kb()
@@ -78,6 +75,101 @@ def build_payments_router() -> Router:
             format_order_message(order, settings),
             parse_mode="HTML",
             reply_markup=order_created_kb(order.code),
+        )
+
+    @r.callback_query(F.data == "nav:plans")
+    async def cb_plans(cb: CallbackQuery, bot: Bot) -> None:
+        await cb.answer()
+        chat_id = cb.message.chat.id if cb.message else cb.from_user.id
+        await bot.send_message(
+            chat_id, format_plans_message(), parse_mode="HTML", reply_markup=plans_kb()
+        )
+
+    @r.callback_query(F.data.startswith("plan:"))
+    async def cb_select_plan(
+        cb: CallbackQuery, svc: Service, settings: Settings, state: FSMContext, bot: Bot
+    ) -> None:
+        await cb.answer()
+        plan_id = (cb.data or "").split(":", 1)[1]
+        plan = get_plan(plan_id)
+        if plan is None:
+            return
+        uid = cb.from_user.id
+        chat_id = cb.message.chat.id if cb.message else uid
+        keys = await svc.list_keys(uid)
+        paid_keys = [k for k in keys if k.kind == "paid"]
+        if paid_keys:
+            await bot.send_message(
+                chat_id,
+                branded(t("plan_choose_mode", plan_name=plan.name, days=plan.days)),
+                parse_mode="HTML",
+                reply_markup=plan_mode_kb(plan.id, keys),
+            )
+            return
+        panels = [p for p in await svc.list_panels() if p["enabled"]]
+        if not plan.multi_server and len(panels) > 1:
+            await bot.send_message(
+                chat_id,
+                branded(t("plan_choose_server", plan_name=plan.name)),
+                parse_mode="HTML",
+                reply_markup=plan_server_kb(plan.id, 0, panels),
+            )
+            return
+        await _finalize_order_creation(
+            chat_id, uid, plan.id, None, 0, svc, settings, state, bot
+        )
+
+    @r.callback_query(F.data.startswith("pmode:"))
+    async def cb_plan_mode(
+        cb: CallbackQuery, svc: Service, settings: Settings, state: FSMContext, bot: Bot
+    ) -> None:
+        await cb.answer()
+        parts = (cb.data or "").split(":")
+        if len(parts) != 3:
+            return
+        plan_id = parts[1]
+        try:
+            target_sub_id = int(parts[2])
+        except ValueError:
+            return
+        plan = get_plan(plan_id)
+        if plan is None:
+            return
+        uid = cb.from_user.id
+        chat_id = cb.message.chat.id if cb.message else uid
+        panels = [p for p in await svc.list_panels() if p["enabled"]]
+        if target_sub_id == 0 and not plan.multi_server and len(panels) > 1:
+            await bot.send_message(
+                chat_id,
+                branded(t("plan_choose_server", plan_name=plan.name)),
+                parse_mode="HTML",
+                reply_markup=plan_server_kb(plan.id, target_sub_id, panels),
+            )
+            return
+        await _finalize_order_creation(
+            chat_id, uid, plan.id, target_sub_id, 0, svc, settings, state, bot
+        )
+
+    @r.callback_query(F.data.startswith("psrv:"))
+    async def cb_plan_server(
+        cb: CallbackQuery, svc: Service, settings: Settings, state: FSMContext, bot: Bot
+    ) -> None:
+        await cb.answer()
+        parts = (cb.data or "").split(":")
+        if len(parts) != 4:
+            return
+        plan_id = parts[1]
+        try:
+            target_sub_id = int(parts[2])
+            panel_id = int(parts[3])
+        except ValueError:
+            return
+        if get_plan(plan_id) is None:
+            return
+        uid = cb.from_user.id
+        chat_id = cb.message.chat.id if cb.message else uid
+        await _finalize_order_creation(
+            chat_id, uid, plan_id, target_sub_id, panel_id, svc, settings, state, bot
         )
 
     @r.callback_query(F.data.startswith("ord:cancel:"))
@@ -143,9 +235,17 @@ def build_payments_router() -> Router:
                 await bot.download_file(f_info.file_path, destination=shots_dir / f"{code}.jpg")
 
         await state.clear()
-        kv = await svc.get_key(uid)
+        is_extension = (
+            order.target_sub_id is not None and order.target_sub_id > 0
+        ) or (order.target_sub_id is None and had_key_before)
+        target_kid = (
+            order.target_sub_id
+            if (order.target_sub_id is not None and order.target_sub_id > 0)
+            else None
+        )
+        kv = await svc.get_key(uid, target_kid)
         if kv is not None:
-            if had_key_before:
+            if is_extension:
                 await msg.answer(
                     format_key_extended_message(order, kv, svc.now()),
                     parse_mode="HTML",

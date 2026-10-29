@@ -115,7 +115,7 @@ async def test_miniapp_customer_and_admin_web_flows(svc: Service, clock, tmp_pat
         assert r.status_code == 200
         boot = r.json()
         assert boot["user"]["id"] == USER and boot["status"]["has_key"] is False
-        assert len(boot["plans"]) == 3
+        assert len(boot["plans"]) == 6
 
         # Claim trial via Mini App
         r = await client.post("/api/trial/claim", headers={"X-Telegram-Init-Data": user_init})

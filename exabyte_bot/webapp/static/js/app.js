@@ -30,6 +30,8 @@
     activeTab: "home",
     devAdmin: window.location.pathname === "/admin" || window.location.search.includes("admin=1"),
     countdownTimer: null,
+    selectedTargetSubId: 0,
+    selectedPanelId: 0,
   };
 
   function haptic(kind) {
@@ -287,21 +289,87 @@
 
     const srvContainer = document.getElementById("key-servers-list");
     srvContainer.innerHTML = "";
-    const servers = st.servers && st.servers.length ? st.servers : [{ panel_id: 0, name: "Server 1", link: st.link }];
-    servers.forEach((srv) => {
-      const wrap = document.createElement("div");
-      wrap.style.marginBottom = "10px";
-      const title = document.createElement("div");
-      title.style.fontWeight = "700";
-      title.style.fontSize = "0.94rem";
-      title.textContent = "🖧 " + srv.name + " (နှိပ်၍ ကူးယူပါ):";
-      const box = document.createElement("div");
-      box.className = "mono-box";
-      box.textContent = srv.link;
-      box.addEventListener("click", () => copyText(srv.link, srv.name));
-      wrap.appendChild(title);
-      wrap.appendChild(box);
-      srvContainer.appendChild(wrap);
+    const keysList = st.keys && st.keys.length ? st.keys : [st];
+    const availServers = boot.available_servers || [];
+
+    keysList.forEach((k, idx) => {
+      const kCard = document.createElement("div");
+      kCard.style.padding = "10px 0";
+      if (idx > 0) {
+        kCard.style.borderTop = "1px solid var(--border)";
+        kCard.style.marginTop = "10px";
+      }
+
+      const dataDesc = k.unlimited
+        ? "♾️ Unlimited Data (1 Server)"
+        : "🌐 Shared GB: ကျန် " +
+          fmtBytes(k.remaining_bytes != null ? k.remaining_bytes : Math.max(0, k.quota_bytes - k.used_bytes)) +
+          " / " +
+          fmtBytes(k.quota_bytes);
+
+      const hdr = document.createElement("div");
+      hdr.style.marginBottom = "8px";
+      hdr.innerHTML =
+        '<div style="font-weight:700;font-size:0.96rem;">🔑 Key #' +
+        (idx + 1) +
+        " (<code>" +
+        (k.email || "") +
+        "</code>)</div>" +
+        '<div style="font-size:0.86rem;color:var(--text-muted);">' +
+        dataDesc +
+        " • လက်ကျန် " +
+        k.days_left +
+        " ရက်</div>";
+      kCard.appendChild(hdr);
+
+      const servers =
+        k.servers && k.servers.length
+          ? k.servers
+          : [{ panel_id: k.panel_id || 0, name: "Server 1", link: k.link }];
+      servers.forEach((srv) => {
+        const wrap = document.createElement("div");
+        wrap.style.marginBottom = "8px";
+        const title = document.createElement("div");
+        title.style.fontWeight = "600";
+        title.style.fontSize = "0.9rem";
+        title.textContent = "🖧 " + srv.name + " (နှိပ်၍ ကူးယူပါ):";
+        const box = document.createElement("div");
+        box.className = "mono-box";
+        box.textContent = srv.link;
+        box.addEventListener("click", () => copyText(srv.link, srv.name));
+        wrap.appendChild(title);
+        wrap.appendChild(box);
+        kCard.appendChild(wrap);
+      });
+
+      if (k.multi_server && availServers.length > 1 && k.id) {
+        const swRow = document.createElement("div");
+        swRow.className = "btn-row";
+        swRow.style.marginTop = "6px";
+        availServers.forEach((asrv) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          const isCur = Number(asrv.id) === Number(k.panel_id || 0);
+          btn.className = "btn btn-sm " + (isCur ? "btn-primary" : "btn-secondary");
+          btn.textContent = (isCur ? "✅ " : "🔄 ") + asrv.name;
+          btn.addEventListener("click", async () => {
+            try {
+              const res = await api("/api/keys/" + k.id + "/server", {
+                method: "POST",
+                body: { panel_id: asrv.id },
+              });
+              showToast(res.message);
+              await refreshBootstrap();
+            } catch (err) {
+              showToast(err.message);
+            }
+          });
+          swRow.appendChild(btn);
+        });
+        kCard.appendChild(swRow);
+      }
+
+      srvContainer.appendChild(kCard);
     });
 
     const subWrap = document.getElementById("key-sub-wrap");
@@ -334,6 +402,59 @@
 
     const container = document.getElementById("plans-container");
     container.innerHTML = "";
+
+    const st = boot.status || {};
+    const existingKeys = st.keys || [];
+    const availServers = boot.available_servers || [];
+
+    if (existingKeys.length > 0) {
+      const modeCard = document.createElement("div");
+      modeCard.className = "card";
+      modeCard.innerHTML =
+        '<div style="font-weight:700;font-size:0.95rem;margin-bottom:8px;">🔑 ဝယ်ယူမည့် ပုံစံ ရွေးချယ်ပါ:</div>';
+      const sel = document.createElement("select");
+      sel.className = "input";
+      const optNew = document.createElement("option");
+      optNew.value = "0";
+      optNew.textContent = "➕ Key အသစ်ဝယ်မည် (နောက်ထပ် Key 1 ခု ထပ်ယူမည်)";
+      sel.appendChild(optNew);
+      existingKeys.forEach((k, idx) => {
+        const opt = document.createElement("option");
+        opt.value = String(k.id);
+        opt.textContent =
+          "🔄 လက်ရှိ Key #" + (idx + 1) + " သက်တမ်းတိုးမည် (" + k.email + ")";
+        sel.appendChild(opt);
+      });
+      sel.value = String(state.selectedTargetSubId || 0);
+      sel.addEventListener("change", () => {
+        state.selectedTargetSubId = Number(sel.value);
+      });
+      modeCard.appendChild(sel);
+
+      if (availServers.length > 1) {
+        const srvLbl = document.createElement("div");
+        srvLbl.style.fontWeight = "700";
+        srvLbl.style.fontSize = "0.92rem";
+        srvLbl.style.margin = "10px 0 6px";
+        srvLbl.textContent = "🖧 Unlimited Plan အတွက် ဆာဗာ ရွေးပါ:";
+        const srvSel = document.createElement("select");
+        srvSel.className = "input";
+        availServers.forEach((s) => {
+          const o = document.createElement("option");
+          o.value = String(s.id);
+          o.textContent = "🌐 " + s.name + " (" + s.host + ")";
+          srvSel.appendChild(o);
+        });
+        srvSel.value = String(state.selectedPanelId || 0);
+        srvSel.addEventListener("change", () => {
+          state.selectedPanelId = Number(srvSel.value);
+        });
+        modeCard.appendChild(srvLbl);
+        modeCard.appendChild(srvSel);
+      }
+      container.appendChild(modeCard);
+    }
+
     (boot.plans || []).forEach((p) => {
       const cls = p.months === 1 ? "plan-1m" : p.months === 3 ? "plan-3m" : "plan-6m";
       const card = document.createElement("div");
@@ -356,23 +477,23 @@
           ? '<span class="plan-old-price">' + p.original_price_text + "</span>"
           : "";
 
+      const featHtml = p.unlimited
+        ? "📶 Data အကန့်အသတ်မရှိ (1 Server) • 📱 စက် " + p.devices + " လုံး • ⏳ " + p.days + " ရက်"
+        : "🌐 " + p.quota_gb + " GB (ဆာဗာအားလုံး ပြောင်းသုံးနိုင်သည် • Shared Data) • ⏳ " + p.days + " ရက်";
+
       card.innerHTML =
         ribbonHtml +
         '<div class="plan-head">' +
-        '<div class="plan-name">🛡️ ' +
+        '<div class="plan-name">' + (p.unlimited ? "🛡️ " : "🌐 ") +
         p.name +
-        " Plan</div>" +
+        "</div>" +
         '<div class="plan-price-wrap">' +
         oldPriceHtml +
         '<span class="plan-price">' +
         p.price_text +
         "</span></div>" +
         "</div>" +
-        '<div class="plan-features">📶 Data အကန့်အသတ်မရှိ • 📱 စက် ' +
-        p.devices +
-        " လုံး • ⏳ " +
-        p.days +
-        " ရက်</div>";
+        '<div class="plan-features">' + featHtml + "</div>";
 
       const buyBtn = document.createElement("button");
       buyBtn.type = "button";
@@ -387,7 +508,16 @@
   async function startOrder(planId) {
     haptic("medium");
     try {
-      const ord = await api("/api/orders", { method: "POST", body: { plan_id: planId } });
+      const existingKeys = (state.boot && state.boot.status && state.boot.status.keys) || [];
+      const targetSubId = existingKeys.length > 0 ? Number(state.selectedTargetSubId || 0) : null;
+      const ord = await api("/api/orders", {
+        method: "POST",
+        body: {
+          plan_id: planId,
+          target_sub_id: targetSubId,
+          panel_id: Number(state.selectedPanelId || 0),
+        },
+      });
       state.boot.open_order = ord;
       renderPlans(state.boot);
       window.scrollTo({ top: 0, behavior: "smooth" });

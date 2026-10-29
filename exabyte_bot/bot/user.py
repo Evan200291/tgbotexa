@@ -22,6 +22,7 @@ from .messages import (
     guide_detail_kb,
     guide_menu_kb,
     key_kb,
+    key_server_switch_kb,
     main_menu_kb,
     support_kb,
 )
@@ -43,7 +44,7 @@ async def send_key_card(
     svc: Service | None = None,
     settings: Settings | None = None,
 ) -> None:
-    servers = await svc.get_key_links(kv.user_id) if svc is not None else None
+    servers = await svc.get_key_links(kv.user_id, kv.id) if svc is not None else None
     sub_url = (
         f"https://{settings.bot_domain}/sub/{kv.sub_id}"
         if (settings and settings.bot_domain and kv.sub_id)
@@ -114,13 +115,69 @@ def build_user_router() -> Router:
         await cb.answer()
         uid = cb.from_user.id
         chat_id = cb.message.chat.id if cb.message else uid
-        kv = await svc.get_key(uid)
-        if kv is None:
+        keys = await svc.list_keys(uid)
+        if not keys:
             await bot.send_message(
                 chat_id, branded(t("no_key")), parse_mode="HTML", reply_markup=back_home_kb()
             )
             return
-        await send_key_card(bot, chat_id, kv, svc.now(), svc=svc, settings=settings)
+        for kv in keys:
+            await send_key_card(bot, chat_id, kv, svc.now(), svc=svc, settings=settings)
+
+    @r.callback_query(F.data.startswith("key:srvmenu:"))
+    async def cb_key_server_menu(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
+        await cb.answer()
+        uid = cb.from_user.id
+        chat_id = cb.message.chat.id if cb.message else uid
+        try:
+            key_id = int((cb.data or "").split(":", 2)[2])
+        except (IndexError, ValueError):
+            return
+        kv = await svc.get_key(uid, key_id)
+        if kv is None:
+            return
+        if not kv.multi_server:
+            await bot.send_message(
+                chat_id,
+                branded(t("server_switch_not_allowed")),
+                parse_mode="HTML",
+                reply_markup=back_home_kb(),
+            )
+            return
+        panels = [p for p in await svc.list_panels() if p["enabled"]]
+        await bot.send_message(
+            chat_id,
+            branded(t("server_switch_menu", email=kv.email)),
+            parse_mode="HTML",
+            reply_markup=key_server_switch_kb(kv.id, panels, kv.panel_id),
+        )
+
+    @r.callback_query(F.data.startswith("key:srvset:"))
+    async def cb_key_server_set(
+        cb: CallbackQuery, svc: Service, settings: Settings, bot: Bot
+    ) -> None:
+        await cb.answer()
+        uid = cb.from_user.id
+        chat_id = cb.message.chat.id if cb.message else uid
+        parts = (cb.data or "").split(":")
+        if len(parts) != 4:
+            return
+        try:
+            key_id = int(parts[2])
+            panel_id = int(parts[3])
+        except ValueError:
+            return
+        try:
+            kv = await svc.switch_key_server(uid, key_id, panel_id)
+        except ServiceError as e:
+            await bot.send_message(
+                chat_id, branded(e.message()), parse_mode="HTML", reply_markup=back_home_kb()
+            )
+            return
+        panels = await svc.list_panels()
+        srv_name = next((str(p["name"]) for p in panels if int(p["id"]) == panel_id), "Server")  # type: ignore[arg-type]
+        intro = t("server_switched_ok", server_name=srv_name)
+        await send_key_card(bot, chat_id, kv, svc.now(), intro=intro, svc=svc, settings=settings)
 
     @r.callback_query(F.data == "key:regen")
     async def cb_regen_key(cb: CallbackQuery, svc: Service, settings: Settings, bot: Bot) -> None:
@@ -148,18 +205,19 @@ def build_user_router() -> Router:
         await cb.answer()
         uid = cb.from_user.id
         chat_id = cb.message.chat.id if cb.message else uid
-        kv = await svc.get_key(uid)
-        if kv is None:
+        keys = await svc.list_keys(uid)
+        if not keys:
             await bot.send_message(
                 chat_id, branded(t("no_key")), parse_mode="HTML", reply_markup=back_home_kb()
             )
             return
-        await bot.send_message(
-            chat_id,
-            format_usage_message(kv, svc.now()),
-            parse_mode="HTML",
-            reply_markup=back_home_kb(),
-        )
+        for kv in keys:
+            await bot.send_message(
+                chat_id,
+                format_usage_message(kv, svc.now()),
+                parse_mode="HTML",
+                reply_markup=back_home_kb(),
+            )
 
     @r.callback_query(F.data == "nav:guide")
     async def cb_guide_menu(cb: CallbackQuery, bot: Bot) -> None:

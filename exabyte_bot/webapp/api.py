@@ -40,6 +40,12 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 class OrderCreateBody(BaseModel):
     plan_id: str
+    target_sub_id: int | None = None
+    panel_id: int = 0
+
+
+class KeySwitchServerBody(BaseModel):
+    panel_id: int
 
 
 class ScreenshotUploadBody(BaseModel):
@@ -213,6 +219,8 @@ def create_webapp(
                 "discount_mmk": p.discount_mmk,
                 "discount_text": fmt_mmk(p.discount_mmk) if p.discount_mmk else "",
                 "unlimited": p.unlimited,
+                "quota_gb": p.quota_gb,
+                "multi_server": p.multi_server,
                 "devices": p.devices,
                 "best_value": p.best_value,
                 "badge_text": (
@@ -221,7 +229,12 @@ def create_webapp(
                     else (t("badge_save", amount=fmt_mmk(p.discount_mmk)) if p.discount_mmk else "")
                 ),
             }
-            for p in P.plans_in("vpn")
+            for p in P.all_plans()
+        ]
+        avail_servers = [
+            {"id": p["id"], "name": p["name"], "host": p["server_host"]}
+            for p in await svc.list_panels()
+            if p["enabled"]
         ]
         return {
             "user": {
@@ -231,6 +244,7 @@ def create_webapp(
                 "is_admin": settings.is_admin(user.id),
             },
             "status": st,
+            "available_servers": avail_servers,
             "open_order": (
                 {
                     "code": open_ord.code,
@@ -240,6 +254,8 @@ def create_webapp(
                     "amount": open_ord.amount,
                     "amount_text": open_ord.amount_text,
                     "state": open_ord.state,
+                    "target_sub_id": open_ord.target_sub_id,
+                    "panel_id": open_ord.panel_id,
                 }
                 if open_ord
                 else None
@@ -251,13 +267,28 @@ def create_webapp(
 
     @app.get("/api/key/qr")
     async def api_key_qr(
-        server: int = 0, user: WebAppUser = Depends(current_user)
+        server: int = 0, key_id: int | None = None, user: WebAppUser = Depends(current_user)
     ) -> Response:
-        links = await svc.get_key_links(user.id)
+        links = await svc.get_key_links(user.id, key_id)
         if not links:
             raise HTTPException(status_code=404, detail=t("no_key"))
         chosen = next((x for x in links if x["panel_id"] == server), links[0])
         return Response(content=qr_png(chosen["link"]), media_type="image/png")
+
+    @app.post("/api/keys/{key_id}/server")
+    async def api_switch_key_server(
+        key_id: int, body: KeySwitchServerBody, user: WebAppUser = Depends(current_user)
+    ) -> dict[str, Any]:
+        try:
+            await svc.switch_key_server(user.id, key_id, body.panel_id)
+        except ServiceError as e:
+            raise HTTPException(status_code=400, detail=e.message()) from None
+        panels = await svc.list_panels()
+        srv_name = next((str(p["name"]) for p in panels if int(p["id"]) == body.panel_id), "Server")
+        return {
+            "message": t("server_switched_ok", server_name=srv_name),
+            "status": await svc.get_status(user.id),
+        }
 
     @app.post("/api/trial/claim")
     async def api_claim_trial(user: WebAppUser = Depends(current_user)) -> dict[str, Any]:
@@ -287,7 +318,12 @@ def create_webapp(
         body: OrderCreateBody, user: WebAppUser = Depends(current_user)
     ) -> dict[str, Any]:
         try:
-            order = await svc.create_order(user.id, body.plan_id)
+            order = await svc.create_order(
+                user.id,
+                body.plan_id,
+                target_sub_id=body.target_sub_id,
+                panel_id=body.panel_id,
+            )
         except ServiceError as e:
             raise HTTPException(status_code=400, detail=e.message()) from None
         return {
@@ -298,6 +334,8 @@ def create_webapp(
             "amount": order.amount,
             "amount_text": order.amount_text,
             "state": order.state,
+            "target_sub_id": order.target_sub_id,
+            "panel_id": order.panel_id,
         }
 
     @app.post("/api/orders/{code}/cancel")
@@ -355,10 +393,18 @@ def create_webapp(
         except ServiceError as e:
             raise HTTPException(status_code=400, detail=e.message()) from None
 
-        kv = await svc.get_key(user.id)
+        is_extension = (
+            order.target_sub_id is not None and order.target_sub_id > 0
+        ) or (order.target_sub_id is None and had_key_before)
+        target_kid = (
+            order.target_sub_id
+            if (order.target_sub_id is not None and order.target_sub_id > 0)
+            else None
+        )
+        kv = await svc.get_key(user.id, target_kid)
         if bot is not None and kv is not None:
             with contextlib.suppress(Exception):
-                if had_key_before:
+                if is_extension:
                     await bot.send_message(
                         user.id,
                         format_key_extended_message(order, kv, svc.now()),

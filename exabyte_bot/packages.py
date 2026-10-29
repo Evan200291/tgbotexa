@@ -34,6 +34,7 @@ class Plan:
     badge: str | None = None  # strings.py key, or None
     description: str = ""
     best_value: bool = False
+    multi_server: bool = False  # True = GB plan (can switch servers & shares GB across servers)
 
     @property
     def original_price_mmk(self) -> int:
@@ -53,14 +54,30 @@ class Plan:
 
 
 PLANS: tuple[Plan, ...] = (
-    Plan(id="vpn_1m", category="vpn", name="1 လ", months=1, days=1 * DAYS_PER_MONTH),
+    # --- Unlimited Data Plans (1 Device limit, locked to 1 chosen Server) ---
+    Plan(id="vpn_1m", category="vpn", name="1 လ (Unlimited)", months=1, days=1 * DAYS_PER_MONTH),
     Plan(
-        id="vpn_3m", category="vpn", name="3 လ", months=3, days=3 * DAYS_PER_MONTH,
+        id="vpn_3m", category="vpn", name="3 လ (Unlimited)", months=3, days=3 * DAYS_PER_MONTH,
         discount_mmk=500, badge="badge_save",
     ),
     Plan(
-        id="vpn_6m", category="vpn", name="6 လ", months=6, days=6 * DAYS_PER_MONTH,
+        id="vpn_6m", category="vpn", name="6 လ (Unlimited)", months=6, days=6 * DAYS_PER_MONTH,
         discount_mmk=1_000, badge="badge_best", best_value=True,
+    ),
+    # --- Shared GB Data Plans (Multi-Server switching, shared GB balance across servers) ---
+    Plan(
+        id="vpn_gb_1m", category="vpn_gb", name="1 လ (100 GB)", months=1,
+        days=1 * DAYS_PER_MONTH, quota_gb=100, multi_server=True,
+    ),
+    Plan(
+        id="vpn_gb_3m", category="vpn_gb", name="3 လ (300 GB)", months=3,
+        days=3 * DAYS_PER_MONTH, quota_gb=300, discount_mmk=500, badge="badge_save",
+        multi_server=True,
+    ),
+    Plan(
+        id="vpn_gb_6m", category="vpn_gb", name="6 လ (600 GB)", months=6,
+        days=6 * DAYS_PER_MONTH, quota_gb=600, discount_mmk=1_000, badge="badge_best",
+        best_value=True, multi_server=True,
     ),
 )
 
@@ -73,4 +90,8 @@ def get_plan(plan_id: str) -> Plan | None:
 
 def plans_in(category: str) -> list[Plan]:
     return [p for p in PLANS if p.category == category]
+
+
+def all_plans() -> list[Plan]:
+    return list(PLANS)
 

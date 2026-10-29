@@ -125,6 +125,44 @@ MIGRATIONS: list[str] = [
         created_at      INTEGER NOT NULL
     );
     """,
+    # v3: multiple keys per account, single-server vs multi-server GB plans, order target_sub_id & panel_id
+    """
+    CREATE TABLE subscriptions_v3 (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id             INTEGER NOT NULL REFERENCES users(telegram_id),
+        kind                TEXT NOT NULL CHECK (kind IN ('trial','paid')),
+        xui_email           TEXT NOT NULL UNIQUE,
+        password            TEXT NOT NULL,
+        sub_id              TEXT NOT NULL,
+        plan_id             TEXT,
+        quota_bytes         INTEGER NOT NULL DEFAULT 0,
+        used_bytes          INTEGER NOT NULL DEFAULT 0,
+        expiry_ms           INTEGER NOT NULL,
+        enabled             INTEGER NOT NULL DEFAULT 1,
+        created_at          INTEGER NOT NULL,
+        last_regenerated_at INTEGER,
+        notified_flags      TEXT NOT NULL DEFAULT '',
+        panel_id            INTEGER NOT NULL DEFAULT 0,
+        multi_server        INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO subscriptions_v3 (
+        id, user_id, kind, xui_email, password, sub_id, plan_id,
+        quota_bytes, used_bytes, expiry_ms, enabled, created_at,
+        last_regenerated_at, notified_flags, panel_id, multi_server
+    )
+    SELECT
+        id, user_id, kind, xui_email, password, sub_id, plan_id,
+        quota_bytes, used_bytes, expiry_ms, enabled, created_at,
+        last_regenerated_at, notified_flags, 0,
+        CASE WHEN quota_bytes > 0 AND kind = 'paid' THEN 1 ELSE 0 END
+    FROM subscriptions;
+    DROP TABLE subscriptions;
+    ALTER TABLE subscriptions_v3 RENAME TO subscriptions;
+    CREATE INDEX idx_subscriptions_user ON subscriptions(user_id, id);
+
+    ALTER TABLE orders ADD COLUMN target_sub_id INTEGER;
+    ALTER TABLE orders ADD COLUMN panel_id INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 

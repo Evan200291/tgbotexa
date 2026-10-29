@@ -60,11 +60,26 @@ S: dict[str, str] = {
     "badge_save": "{amount} သက်သာ",
     "badge_best": "အတန်ဆုံး",
     "plan_features": "Data အကန့်အသတ်မရှိ • စက် {devices} လုံး • {days} ရက်",
-    "plans_header": "💳 <b>VPN Plan များ ရွေးချယ်ပါ</b>\nData အကန့်အသတ်မရှိ • စက် 1 လုံး • မြန်နှုန်းမြင့်",
+    "plans_header": "💳 <b>Unlimited Plan များ (စက် 1 လုံး • ရွေးချယ်ထားသော Server 1 ခု)</b>",
+    "plans_gb_header": "📶 <b>GB Data Plan များ (Server အားလုံး ပြောင်းသုံးနိုင်သည် • GB မျှသုံး)</b>",
     "plan_card_line": (
         "• <b>{name}</b> ({days} ရက်) — {price_part}{badge_part}"
     ),
     "btn_select_plan": "💳 {name} — {price}",
+    "plan_choose_mode": "🔑 <b>{plan_name} — {price}</b> အတွက် ရွေးချယ်ပါ:",
+    "btn_buy_new_key": "➕ Key အသစ်ဝယ်မည်",
+    "btn_extend_key": "🔄 လက်ရှိ Key တိုးမည် ({email})",
+    "plan_choose_server": (
+        "🖧 <b>{plan_name}</b> အတွက် အသုံးပြုမည့် Server (၁) ခုကို ရွေးပါ\n"
+        "<i>(Unlimited Plan သည် နောက်ပိုင်း Server ပြောင်း၍ မရပါ)</i>"
+    ),
+    "btn_switch_server": "🔄 ဆာဗာပြောင်းမည်",
+    "server_switch_menu": (
+        "🖧 <b>Key (<code>{email}</code>) အတွက် Server ရွေးချယ်ပါ</b>\n"
+        "• လက်ကျန် Shared Data: <b>{remaining}</b>"
+    ),
+    "server_switched_ok": "✅ <b>{server_name}</b> သို့ ပြောင်းလဲပြီးပါပြီ။ (လက်ကျန် Data: <b>{remaining}</b>)",
+    "server_switch_not_allowed": "🔒 Unlimited Plan သည် Server ပြောင်း၍ မရပါ။ GB Data Plan များသာ Server ပြောင်းသုံးနိုင်ပါသည်။",
     # --- trial ---
     "trial_ok": "🔑 အခမဲ့ စမ်းသပ် Key ရပါပြီ။ <b>{gb} GB</b>၊ <b>{days} ရက်</b> သုံးနိုင်ပါသည်။",
     "trial_too_early": "⏳ အခမဲ့ စမ်းသပ်ကို နောက်ထပ် <b>{remaining}</b> အကြာတွင် ထပ်ယူနိုင်ပါမည်။",
@@ -93,7 +108,7 @@ S: dict[str, str] = {
     ),
     "order_key_extended": (
         "✨ <b>အော်ဒါ <code>{code}</code> ({plan_name}) လက်ခံရရှိပါပြီ။</b>\n"
-        "• လက်ရှိ Key တွင် <b>+{days} ရက်</b> နှင့် <b>Unlimited Data</b> တိုးပေးထားပါသည်။\n"
+        "• လက်ရှိ Key တွင် <b>+{days} ရက်</b> နှင့် <b>{data_label}</b> တိုးပေးထားပါသည်။\n"
         "• သက်တမ်းကုန်ရက်: <b>{expiry_date}</b> (<b>{days_left} ရက်</b> ကျန်)\n"
         "• Key အသစ် ထပ်ထည့်ရန် မလိုဘဲ လက်ရှိ Key အတိုင်း ဆက်သုံးနိုင်ပါသည်။"
     ),
@@ -106,7 +121,7 @@ S: dict[str, str] = {
     "order_approved": "✨ ငွေပေးချေမှု အတည်ပြုပြီးပါပြီ။ ကျေးဇူးတင်ပါသည်။",
     "order_approved_card": (
         "<b>✨ ငွေပေးချေမှု အတည်ပြုပြီးပါပြီ။ ကျေးဇူးတင်ပါသည်။</b>\n"
-        "• Plan: <b>{plan_name}</b> (+{days} ရက် • Unlimited Data)\n"
+        "• Plan: <b>{plan_name}</b> (+{days} ရက် • {data_label})\n"
         "• သက်တမ်းကုန်ရက်: <b>{expiry_date}</b> (<b>{days_left} ရက်</b> ကျန်)\n"
         "• Key အသစ် ထပ်ထည့်ရန် မလိုဘဲ လက်ရှိ Key အတိုင်း ဆက်သုံးနိုင်ပါသည်။"
     ),
@@ -121,14 +136,21 @@ S: dict[str, str] = {
         "<code>{link}</code>"
     ),
     "usage_card_trial": (
-        "📶 <b>Data သုံးစွဲမှု (အခမဲ့ စမ်းသပ်)</b>\n\n"
+        "📶 <b>Data သုံးစွဲမှု (အခမဲ့ စမ်းသပ်)</b>\n"
         "{bar} <b>{percent}%</b>\n"
         "• သုံးပြီး: <b>{used}</b> / <b>{quota}</b>\n"
         "• လက်ကျန် သက်တမ်း: <b>{days_left} ရက်</b> ({expiry_date})\n"
         "• အခြေအနေ: <b>{status}</b>"
     ),
+    "usage_card_paid_gb": (
+        "📶 <b>Data သုံးစွဲမှု (GB Plan — Server အားလုံး မျှသုံး)</b>\n"
+        "{bar} <b>{percent}%</b>\n"
+        "• သုံးပြီး: <b>{used}</b> / <b>{quota}</b> (လက်ကျန်: <b>{remaining}</b>)\n"
+        "• လက်ကျန် သက်တမ်း: <b>{days_left} ရက်</b> ({expiry_date})\n"
+        "• အခြေအနေ: <b>{status}</b>"
+    ),
     "usage_card_paid": (
-        "📶 <b>Data သုံးစွဲမှု (ငွေပေး Plan)</b>\n\n"
+        "📶 <b>Data သုံးစွဲမှု (Unlimited Plan)</b>\n"
         "• Data ပမာဏ: <b>အကန့်အသတ်မရှိ (Unlimited)</b>\n"
         "• လက်ရှိ သုံးပြီး: <b>{used}</b>\n"
         "• လက်ကျန် သက်တမ်း: <b>{days_left} ရက်</b> ({expiry_date})\n"

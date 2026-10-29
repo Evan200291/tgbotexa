@@ -112,10 +112,20 @@ def test_qr_png_is_png():
 # ------------------------------------------------------------------ plans
 def test_plan_prices_from_data():
     prices = {p.id: (p.price_mmk, p.original_price_mmk, p.discount_mmk) for p in P.PLANS}
-    assert prices == {"vpn_1m": (5000, 5000, 0), "vpn_3m": (14500, 15000, 500),
-                      "vpn_6m": (29000, 30000, 1000)}
-    assert all(p.unlimited and p.devices == 1 and p.category == "vpn" for p in P.PLANS)
-    assert [p.days for p in P.PLANS] == [30, 90, 180]
+    assert prices == {
+        "vpn_1m": (5000, 5000, 0),
+        "vpn_3m": (14500, 15000, 500),
+        "vpn_6m": (29000, 30000, 1000),
+        "vpn_gb_1m": (5000, 5000, 0),
+        "vpn_gb_3m": (14500, 15000, 500),
+        "vpn_gb_6m": (29000, 30000, 1000),
+    }
+    vpn_plans = P.plans_in("vpn")
+    gb_plans = P.plans_in("vpn_gb")
+    assert all(p.unlimited and not p.multi_server and p.devices == 1 for p in vpn_plans)
+    assert all(not p.unlimited and p.multi_server for p in gb_plans)
+    assert [p.quota_gb for p in gb_plans] == [100, 300, 600]
+    assert [p.days for p in vpn_plans] == [30, 90, 180]
     assert fmt_mmk(14500) == "14,500 ကျပ်"
 
 
@@ -268,3 +278,57 @@ def test_mmt_timezone_and_date_formatting():
     start_dt = from_ms(start_day_ms) + MMT
     expected = (2026, 10, 29, 0, 0)
     assert (start_dt.year, start_dt.month, start_dt.day, start_dt.hour, start_dt.minute) == expected
+
+
+async def test_multi_key_and_gb_plan_shared_traffic_and_server_switch(
+    svc: Service, user, panel: MockPanel
+):
+    from exabyte_bot.service import ServerSwitchNotAllowed
+    from exabyte_bot.util import days_left
+
+    # 1. Buy first key: Unlimited 1-month plan (locked to 1 server, cannot switch server)
+    o1 = await svc.create_order(user, "vpn_1m", target_sub_id=0, panel_id=0)
+    await svc.attach_screenshot(user, o1.code, "f1", "u1")
+    await svc.approve_order(o1.code, ADMIN)
+
+    keys = await svc.list_keys(user)
+    assert len(keys) == 1
+    k1 = keys[0]
+    assert k1.unlimited is True and k1.multi_server is False
+    with pytest.raises(ServerSwitchNotAllowed):
+        await svc.switch_key_server(user, k1.id, 0)
+
+    # 2. Buy a SECOND key on the same account: 100 GB Data plan (multi_server=True)
+    o2 = await svc.create_order(user, "vpn_gb_1m", target_sub_id=0)
+    await svc.attach_screenshot(user, o2.code, "f2", "u2")
+    await svc.approve_order(o2.code, ADMIN)
+
+    keys = await svc.list_keys(user)
+    assert len(keys) == 2
+    k2 = next(k for k in keys if k.id != k1.id)
+    assert k2.unlimited is False and k2.multi_server is True
+    assert k2.quota_bytes == 100 * GB
+    assert k2.remaining_bytes == 100 * GB
+
+    # 3. Extend key #2 with another 100 GB plan -> quota becomes 200 GB and +30 days
+    o3 = await svc.create_order(user, "vpn_gb_1m", target_sub_id=k2.id)
+    await svc.attach_screenshot(user, o3.code, "f3", "u3")
+    await svc.approve_order(o3.code, ADMIN)
+
+    k2_ext = await svc.get_key(user, k2.id)
+    assert k2_ext is not None
+    assert k2_ext.quota_bytes == 200 * GB
+    assert days_left(k2_ext.expiry_ms, svc.now()) == 60
+
+    # 4. Usage on key #2 reduces shared remaining GB balance
+    panel.add_usage(k2.email, down=25 * GB)
+    await svc.sync_usage()
+    k2_after = await svc.get_key(user, k2.id)
+    assert k2_after is not None
+    assert k2_after.used_bytes == 25 * GB
+    assert k2_after.remaining_bytes == 175 * GB
+
+    # 5. GB key can switch servers freely
+    switched = await svc.switch_key_server(user, k2.id, 0)
+    assert switched.panel_id == 0
+

@@ -64,6 +64,10 @@ def format_key_message(
     return branded(body)
 
 
+def _plan_data_label(plan: P.Plan) -> str:
+    return f"+{plan.quota_gb} GB (Shared Data)" if plan.quota_gb else "Unlimited Data"
+
+
 def format_key_extended_message(order: Order, kv: KeyView, now: datetime) -> str:
     return branded(
         t(
@@ -71,6 +75,7 @@ def format_key_extended_message(order: Order, kv: KeyView, now: datetime) -> str
             code=order.code,
             plan_name=order.plan.name,
             days=order.plan.days,
+            data_label=_plan_data_label(order.plan),
             expiry_date=fmt_date(kv.expiry_ms),
             days_left=days_left(kv.expiry_ms, now),
         )
@@ -83,6 +88,7 @@ def format_order_approved_message(order: Order, kv: KeyView, now: datetime) -> s
             "order_approved_card",
             plan_name=order.plan.name,
             days=order.plan.days,
+            data_label=_plan_data_label(order.plan),
             expiry_date=fmt_date(kv.expiry_ms),
             days_left=days_left(kv.expiry_ms, now),
         )
@@ -105,6 +111,19 @@ def format_usage_message(kv: KeyView, now: datetime) -> str:
             expiry_date=exp,
             status=st,
         )
+    elif not kv.unlimited:
+        bar, pct = progress_bar(kv.used_bytes, kv.quota_bytes)
+        body = t(
+            "usage_card_paid_gb",
+            bar=bar,
+            percent=pct,
+            used=fmt_bytes(kv.used_bytes),
+            quota=fmt_bytes(kv.quota_bytes),
+            remaining=fmt_bytes(kv.remaining_bytes),
+            days_left=d_left,
+            expiry_date=exp,
+            status=st,
+        )
     else:
         body = t(
             "usage_card_paid",
@@ -116,21 +135,29 @@ def format_usage_message(kv: KeyView, now: datetime) -> str:
     return branded(body)
 
 
+def _format_plan_line(p: P.Plan) -> str:
+    if p.discount_mmk > 0:
+        price_part = f"<s>{fmt_mmk(p.original_price_mmk)}</s> <b>{fmt_mmk(p.price_mmk)}</b>"
+        save_txt = t("badge_save", amount=fmt_mmk(p.discount_mmk))
+        badge_part = f" • 🏷️ <b>{save_txt}</b>"
+        if p.best_value:
+            badge_part += f" ({t('badge_best')})"
+    else:
+        price_part = f"<b>{fmt_mmk(p.price_mmk)}</b>"
+        badge_part = ""
+    return t("plan_card_line", name=p.name, days=p.days, price_part=price_part, badge_part=badge_part)
+
+
 def format_plans_message() -> str:
-    lines = [t("plans_header"), ""]
+    lines = [t("plans_header")]
     for p in P.plans_in("vpn"):
-        if p.discount_mmk > 0:
-            price_part = f"<s>{fmt_mmk(p.original_price_mmk)}</s> <b>{fmt_mmk(p.price_mmk)}</b>"
-            save_txt = t("badge_save", amount=fmt_mmk(p.discount_mmk))
-            badge_part = f" • 🏷️ <b>{save_txt}</b>"
-            if p.best_value:
-                badge_part += f" ({t('badge_best')})"
-        else:
-            price_part = f"<b>{fmt_mmk(p.price_mmk)}</b>"
-            badge_part = ""
-        lines.append(
-            t("plan_card_line", name=p.name, days=p.days, price_part=price_part, badge_part=badge_part)
-        )
+        lines.append(_format_plan_line(p))
+    gb_plans = P.plans_in("vpn_gb")
+    if gb_plans:
+        lines.append("")
+        lines.append(t("plans_gb_header"))
+        for p in gb_plans:
+            lines.append(_format_plan_line(p))
     return branded("\n".join(lines))
 
 
@@ -183,11 +210,34 @@ def back_home_kb() -> InlineKeyboardMarkup:
 
 
 def key_kb(kv: KeyView) -> InlineKeyboardMarkup:
-    del kv
-    rows: list[list[InlineKeyboardButton]] = [
+    rows: list[list[InlineKeyboardButton]] = []
+    if kv.multi_server and kv.id:
+        rows.append([
+            InlineKeyboardButton(
+                text=t("btn_switch_server"), callback_data=f"key:srvmenu:{kv.id}"
+            )
+        ])
+    rows.extend([
         [InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide")],
         [InlineKeyboardButton(text=t("back"), callback_data="nav:home")],
-    ]
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def key_server_switch_kb(
+    key_id: int, panels: list[dict[str, object]], current_panel_id: int
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for p in panels:
+        pid = int(p["id"])  # type: ignore[arg-type]
+        mark = "✅ " if pid == current_panel_id else "🌐 "
+        rows.append([
+            InlineKeyboardButton(
+                text=f"{mark}{p['name']} ({p['server_host']})",
+                callback_data=f"key:srvset:{key_id}:{pid}",
+            )
+        ])
+    rows.append([InlineKeyboardButton(text=t("back"), callback_data="nav:key")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -199,9 +249,44 @@ def plans_kb() -> InlineKeyboardMarkup:
                 callback_data=f"plan:{p.id}",
             )
         ]
-        for p in P.plans_in("vpn")
+        for p in P.all_plans()
     ]
     rows.append([InlineKeyboardButton(text=t("back"), callback_data="nav:home")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def plan_mode_kb(plan_id: str, keys: list[KeyView]) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text=t("btn_buy_new_key"), callback_data=f"pmode:{plan_id}:0"
+            )
+        ]
+    ]
+    for k in keys:
+        rows.append([
+            InlineKeyboardButton(
+                text=t("btn_extend_key", email=k.email),
+                callback_data=f"pmode:{plan_id}:{k.id}",
+            )
+        ])
+    rows.append([InlineKeyboardButton(text=t("back"), callback_data="nav:plans")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def plan_server_kb(
+    plan_id: str, target_sub_id: int, panels: list[dict[str, object]]
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text=f"🌐 {p['name']} ({p['server_host']})",
+                callback_data=f"psrv:{plan_id}:{target_sub_id}:{int(p['id'])}",  # type: ignore[arg-type]
+            )
+        ]
+        for p in panels
+    ]
+    rows.append([InlineKeyboardButton(text=t("back"), callback_data="nav:plans")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
