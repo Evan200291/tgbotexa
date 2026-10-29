@@ -47,6 +47,8 @@ from .util import (
 from .xui import (
     ClientSpec,
     Inbound,
+    PanelAuthError,
+    PanelUnavailable,
     XUIClient,
     XUIError,
     build_ss_link,
@@ -194,12 +196,20 @@ class Service:
         self._extra_xui: dict[int, XUIClient] = {}
 
     # ----- startup / inbound
-    async def startup(self) -> Inbound:
-        ib = await self.xui.find_inbound(self.inbound_remark)
-        ib.validate()
-        self._inbound = ib
-        log.info("using inbound id=%s port=%s method=%s", ib.id, ib.port, ib.method)
-        return ib
+    async def _ensure_inbound(self) -> Inbound:
+        if self._inbound is None:
+            ib = await self.xui.find_inbound(self.inbound_remark)
+            ib.validate()
+            self._inbound = ib
+            log.info("using inbound id=%s port=%s method=%s", ib.id, ib.port, ib.method)
+        return self._inbound
+
+    async def startup(self) -> Inbound | None:
+        try:
+            return await self._ensure_inbound()
+        except (PanelUnavailable, PanelAuthError) as exc:
+            log.warning("Primary 3X-UI panel not reachable at startup (%s). Will retry dynamically.", exc)
+            return None
 
     async def _get_extra_client(self, row: aiosqlite.Row) -> tuple[XUIClient, Inbound]:
         pid = int(row["id"])
@@ -403,6 +413,7 @@ class Service:
 
     # ----- trial
     async def claim_trial(self, tg_id: int) -> KeyView:
+        await self._ensure_inbound()
         async with self._lock(tg_id):
             info = await self.trial_info(tg_id)
             if info["reason"] == "paid_active":
@@ -448,6 +459,7 @@ class Service:
     # ----- plans (shared by approve + admin grant)
     async def _apply_plan(self, tg_id: int, plan: Plan) -> KeyView:
         """Create, extend or upgrade the user's single key. Caller holds the user lock."""
+        await self._ensure_inbound()
         now_ms = self._now_ms()
         add_ms = plan.days * MS_PER_DAY
         sub = await self._sub_row(tg_id)
@@ -745,6 +757,7 @@ class Service:
 
     # ----- key regeneration
     async def regenerate_key(self, tg_id: int) -> KeyView:
+        await self._ensure_inbound()
         async with self._lock(tg_id):
             sub = await self._sub_row(tg_id)
             if sub is None:
@@ -781,6 +794,11 @@ class Service:
 
         Returns the refreshed keys so the jobs module can decide on notifications.
         """
+        if self._inbound is None:
+            try:
+                await self._ensure_inbound()
+            except (PanelUnavailable, PanelAuthError):
+                return []
         ib = await self.xui.get_inbound(self.inbound.id)
         stats = traffic_from_stats(ib.client_stats)
 
@@ -930,6 +948,7 @@ class Service:
     async def admin_adjust_key(
         self, admin_id: int, tg_id: int, *, add_days: int = 0, add_gb: int = 0
     ) -> KeyView:
+        await self._ensure_inbound()
         async with self._lock(tg_id):
             sub = await self._sub_row(tg_id)
             if sub is None:
@@ -966,6 +985,7 @@ class Service:
         return key
 
     async def admin_set_key_enabled(self, admin_id: int, tg_id: int, enabled: bool) -> KeyView:
+        await self._ensure_inbound()
         async with self._lock(tg_id):
             sub = await self._sub_row(tg_id)
             if sub is None:
@@ -996,6 +1016,7 @@ class Service:
         return key
 
     async def admin_revoke_key(self, admin_id: int, tg_id: int) -> None:
+        await self._ensure_inbound()
         async with self._lock(tg_id):
             sub = await self._sub_row(tg_id)
             if sub is None:
@@ -1008,7 +1029,7 @@ class Service:
 
     # ----- multi-panel 3X-UI management
     async def list_panels(self) -> list[dict[str, Any]]:
-        ib = self.inbound
+        ib = await self._ensure_inbound()
         out: list[dict[str, Any]] = [
             {
                 "id": 0,
