@@ -1,11 +1,15 @@
 # syntax=docker/dockerfile:1
 FROM python:3.11-slim AS runtime
 
-# Install curl for healthcheck and ca-certificates for outbound TLS
+# Install curl for healthcheck, ca-certificates, and tzdata for MMT (UTC+6:30)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=Asia/Yangon
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Create non-root system user and group
 RUN groupadd -g 10001 exabyte && \

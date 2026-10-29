@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from datetime import UTC, datetime
 
 import pytest
 
@@ -14,7 +15,16 @@ from exabyte_bot.service import (
     TrialPaidActive,
     TrialTooEarly,
 )
-from exabyte_bot.util import GB, MS_PER_DAY, fmt_mmk, to_ms
+from exabyte_bot.util import (
+    GB,
+    MMT,
+    MS_PER_DAY,
+    fmt_date,
+    fmt_mmk,
+    from_ms,
+    local_day_start_ms,
+    to_ms,
+)
 from exabyte_bot.xui import (
     Inbound,
     InboundNotFound,
@@ -244,3 +254,17 @@ async def test_ss2022_inbound_end_to_end(db, clock):
     assert len(base64.b64decode(key.password)) == 16
     assert _decode_userinfo(key.link).count(":") == 2
     await x.aclose()
+
+
+def test_mmt_timezone_and_date_formatting():
+    # 2026-10-29 12:00:00 UTC = 2026-10-29 18:30:00 MMT (+6:30)
+    utc_dt = datetime(2026, 10, 29, 12, 0, 0, tzinfo=UTC)
+    ms = to_ms(utc_dt)
+    formatted = fmt_date(ms)
+    assert formatted == "2026-10-29 18:30 MMT"
+
+    # local_day_start_ms should equal 2026-10-29 00:00:00 MMT
+    start_day_ms = local_day_start_ms(utc_dt)
+    start_dt = from_ms(start_day_ms) + MMT
+    expected = (2026, 10, 29, 0, 0)
+    assert (start_dt.year, start_dt.month, start_dt.day, start_dt.hour, start_dt.minute) == expected

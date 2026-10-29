@@ -132,7 +132,27 @@
     if (!isoStr) return "—";
     const d = new Date(isoStr);
     if (isNaN(d.getTime())) return isoStr;
-    return d.toISOString().slice(0, 16).replace("T", " ");
+    try {
+      // Myanmar Standard Time (UTC+6:30, Asia/Yangon)
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Yangon",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(d);
+      const m = {};
+      parts.forEach((p) => {
+        m[p.type] = p.value;
+      });
+      return `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute} MMT`;
+    } catch (_) {
+      const mmtMs = d.getTime() + (6 * 60 + 30) * 60000;
+      const mmtDate = new Date(mmtMs);
+      return mmtDate.toISOString().slice(0, 16).replace("T", " ") + " MMT";
+    }
   }
 
   function fmtCountdown(sec) {

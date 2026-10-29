@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 import string
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 MS_PER_DAY = 86_400_000
 GB = 1024**3
@@ -80,12 +80,15 @@ def new_sub_id() -> str:
     return secrets.token_hex(8)
 
 
-# Myanmar Standard Time (UTC+6:30, no DST) for local dates and 'today'/'this month' stats.
+# Myanmar Standard Time (UTC+6:30, Asia/Yangon, no DST) for local dates and 'today'/'this month' stats.
 MMT = timedelta(hours=6, minutes=30)
+TZ_MMT = timezone(MMT, name="MMT")
 
 
-def fmt_date(ms: int) -> str:
-    return (from_ms(ms) + MMT).strftime("%Y-%m-%d %H:%M")
+def fmt_date(ms: int, with_tz: bool = True) -> str:
+    """Format millisecond epoch timestamp into Myanmar Time (UTC+6:30)."""
+    base = (from_ms(ms) + MMT).strftime("%Y-%m-%d %H:%M")
+    return f"{base} MMT" if with_tz else base
 
 
 def local_day_start_ms(now: datetime) -> int:
