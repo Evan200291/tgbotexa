@@ -258,8 +258,14 @@ class XUIClient:
         return parse_inbound(await self._api("GET", f"{API}/get/{inbound_id}"))
 
     async def find_inbound(self, remark: str) -> Inbound:
-        for ib in await self.list_inbounds():
+        inbounds = await self.list_inbounds()
+        for ib in inbounds:
             if ib.remark == remark:
+                return ib
+        # Flexible fallback (ignoring case, underscores, and hyphens)
+        norm = remark.lower().replace("_", "").replace("-", "")
+        for ib in inbounds:
+            if ib.remark.lower().replace("_", "").replace("-", "") == norm:
                 return ib
         raise InboundNotFound(f"No inbound with remark '{remark}' on the panel")
 
