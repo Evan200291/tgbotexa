@@ -158,6 +158,22 @@ async def test_miniapp_customer_and_admin_web_flows(svc: Service, clock, tmp_pat
         )
         assert ov.status_code == 200
         assert ov.json()["orders"][0]["code"] == code
+        assert f"/api/admin/orders/{code}/screenshot" in ov.json()["orders"][0]["screenshot"]
+
+        # Admin can view the uploaded screenshot binary via the endpoint
+        shot_img = await client.get(
+            f"/api/admin/orders/{code}/screenshot", headers={"X-Telegram-Init-Data": admin_init}
+        )
+        assert shot_img.status_code == 200
+        assert shot_img.headers["content-type"] == "image/png"
+        assert len(shot_img.content) > 0
+
+        # Query param token also allows image loading in standard <img> tags
+        admin_tok = create_admin_web_token(ADMIN, FAKE_TOKEN, now=clock())
+        shot_img_q = await client.get(f"/api/admin/orders/{code}/screenshot?token={admin_tok}")
+        assert shot_img_q.status_code == 200
+        assert shot_img_q.headers["content-type"] == "image/png"
+        assert len(shot_img_q.content) > 0
 
         rj = await client.post(
             f"/api/admin/orders/{code}/reject",

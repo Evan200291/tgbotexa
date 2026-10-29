@@ -498,9 +498,19 @@
         box.style.paddingTop = "10px";
         box.style.marginTop = "10px";
 
+        const tokenQuery = state.adminToken ? "?token=" + encodeURIComponent(state.adminToken) : "";
+        const shotUrl = o.screenshot
+          ? (o.screenshot.startsWith("http") || o.screenshot.startsWith("/")
+              ? o.screenshot + tokenQuery
+              : o.screenshot)
+          : "";
         const shotHtml =
-          o.screenshot && o.screenshot.startsWith("data:image")
-            ? '<img class="shot-preview" src="' + o.screenshot + '" alt="Payment Screenshot">'
+          shotUrl && (shotUrl.startsWith("data:image") || shotUrl.startsWith("/"))
+            ? '<div style="margin:8px 0;"><a href="' +
+              shotUrl +
+              '" target="_blank" rel="noopener"><img class="shot-preview" src="' +
+              shotUrl +
+              '" alt="Payment Screenshot" style="max-height:160px;border-radius:8px;border:1px solid var(--border);"></a><div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">(Click to view full screenshot)</div></div>'
             : o.screenshot
             ? '<div class="mono-box">Telegram Photo ID: ' + o.screenshot + "</div>"
             : "";
@@ -688,7 +698,40 @@
   function readFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        if (file.size > 1.2 * 1024 * 1024 && file.type && file.type.startsWith("image/")) {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 1600;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL("image/jpeg", 0.85));
+              return;
+            }
+            resolve(result);
+          };
+          img.onerror = () => resolve(result);
+          img.src = result;
+        } else {
+          resolve(result);
+        }
+      };
       reader.onerror = () => reject(new Error("ပုံဖတ်၍ မရပါ။"));
       reader.readAsDataURL(file);
     });

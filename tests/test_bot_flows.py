@@ -201,8 +201,8 @@ async def test_trial_claim_key_and_usage_via_bot(svc: Service, tmp_path, panel):
 
     await tap(USER, "nav:trial")
     last = session.sent_to(USER)[-1]
-    assert isinstance(last, SendPhoto)
-    assert "ss://" in (last.caption or "")
+    assert isinstance(last, SendMessage)
+    assert "ss://" in (last.text or "")
 
     kv = await svc.get_key(USER)
     assert kv is not None
@@ -235,11 +235,11 @@ async def test_full_payment_and_admin_approval_flow(svc: Service, tmp_path):
     await send_text(USER, "here is text")
     assert "Screenshot ပုံ" in session.last_text(USER)
 
-    # Upload screenshot -> user IMMEDIATELY receives their VPN key + QR, and admin gets photo + buttons
+    # Upload screenshot -> user IMMEDIATELY receives their clean VPN key card, and admin gets photo + buttons
     await send_photo(USER, file_id="shot-fid", unique_id="shot-uid-1")
     instant_msg = session.sent_to(USER)[-1]
-    assert isinstance(instant_msg, SendPhoto)
-    assert "ss://" in (instant_msg.caption or "") and order.code in (instant_msg.caption or "")
+    assert isinstance(instant_msg, SendMessage)
+    assert "ss://" in (instant_msg.text or "") and order.code in (instant_msg.text or "")
     admin_msg = session.sent_to(ADMIN)[-1]
     assert isinstance(admin_msg, SendPhoto) and order.code in (admin_msg.caption or "")
 
@@ -264,8 +264,8 @@ async def test_full_payment_and_admin_approval_flow(svc: Service, tmp_path):
     await tap(ADMIN, f"adm:ap:{order.code}")
     assert (await svc.get_order(order.code)).state == "approved"
     user_last = session.sent_to(USER)[-1]
-    assert isinstance(user_last, SendPhoto)
-    assert S["order_approved"] in (user_last.caption or "")
+    assert isinstance(user_last, SendMessage)
+    assert S["order_approved"] in (user_last.text or "")
 
     # Paid user can view Unlimited usage and regenerate key
     await tap(USER, "nav:usage")

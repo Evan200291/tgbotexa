@@ -7,13 +7,13 @@ from datetime import datetime
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BufferedInputFile, CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message
 
 from .. import packages as P
 from ..config import Settings
 from ..service import KeyView, Service, ServiceError
 from ..strings import t
-from ..xui import PanelUnavailable, qr_png
+from ..xui import PanelUnavailable
 from .messages import (
     back_home_kb,
     branded,
@@ -52,9 +52,8 @@ async def send_key_card(
     caption = format_key_message(
         kv, now, intro=intro, extra_servers=servers, sub_url=sub_url
     )
-    photo = BufferedInputFile(qr_png(kv.link), filename="exabyte-key.png")
-    await bot.send_photo(
-        chat_id=chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=key_kb(kv)
+    await bot.send_message(
+        chat_id=chat_id, text=caption, parse_mode="HTML", reply_markup=key_kb(kv)
     )
 
 

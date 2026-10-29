@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import hashlib
+import logging
 from pathlib import Path
 from typing import Any
 
 from aiogram import Bot
+from aiogram.types import BufferedInputFile
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +24,8 @@ from ..strings import S, t
 from ..util import fmt_date, fmt_mmk
 from ..xui import PanelUnavailable, XUIError, qr_png
 from .auth import AuthError, WebAppUser, validate_init_data, verify_admin_web_token
+
+log = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -92,15 +97,22 @@ def create_webapp(
                 if not settings.dev_mode:
                     raise HTTPException(status_code=401, detail=str(e)) from None
 
-        if x_admin_token:
+        effective_admin_token = (
+            x_admin_token
+            or request.query_params.get("token")
+            or request.query_params.get("admin_token")
+            or ""
+        )
+        if effective_admin_token:
             try:
-                u = verify_admin_web_token(x_admin_token, token_val, now=svc.now())
+                u = verify_admin_web_token(effective_admin_token, token_val, now=svc.now())
                 if not settings.is_admin(u.id):
                     raise AuthError("Not an admin ID")
                 await svc.ensure_user(u.id, u.username, u.first_name)
                 return u
             except AuthError as e:
-                raise HTTPException(status_code=401, detail=str(e)) from None
+                if not settings.dev_mode:
+                    raise HTTPException(status_code=401, detail=str(e)) from None
 
         if settings.dev_mode:
             dev_admin = request.headers.get("x-dev-admin") == "1"
@@ -297,11 +309,40 @@ def create_webapp(
         raw = (body.image_data_url or "").strip()
         if not raw or len(raw) < 20:
             raise HTTPException(status_code=400, detail=t("order_send_photo_prompt", code=code))
-        # Hash the image bytes so duplicate screenshot uploads are caught across WebApp & Bot.
-        digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+        ext = "jpg"
+        b64_part = raw
+        if "," in raw:
+            header, b64_part = raw.split(",", 1)
+            hdr_lower = header.lower()
+            if "png" in hdr_lower:
+                ext = "png"
+            elif "webp" in hdr_lower:
+                ext = "webp"
+            elif "gif" in hdr_lower:
+                ext = "gif"
+
+        b64_part = b64_part.strip().replace(" ", "+")
+        b64_part += "=" * (-len(b64_part) % 4)
+        try:
+            img_bytes = base64.b64decode(b64_part)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid image encoding") from None
+
+        if not img_bytes:
+            raise HTTPException(status_code=400, detail="Empty image data")
+
+        # Save screenshot file to disk immediately
+        shots_dir = settings.data_dir / "screenshots"
+        shots_dir.mkdir(parents=True, exist_ok=True)
+        img_path = shots_dir / f"{code}.{ext}"
+        img_path.write_bytes(img_bytes)
+
+        # Hash image bytes so duplicate screenshot uploads are caught across WebApp & Bot.
+        digest = hashlib.sha256(img_bytes).hexdigest()[:24]
         unique_id = f"web-{digest}"
         try:
-            order = await svc.attach_screenshot(user.id, code, raw[:200_000], unique_id)
+            order = await svc.attach_screenshot(user.id, code, unique_id, unique_id)
         except ServiceError as e:
             raise HTTPException(status_code=400, detail=e.message()) from None
 
@@ -324,9 +365,29 @@ def create_webapp(
             with_kb = admin_order_review_kb(
                 order.code, user.id, key_enabled=kv.enabled if kv else True
             )
-            with contextlib.suppress(Exception):
-                await bot.send_message(
-                    settings.admin_ids[0], caption, parse_mode="HTML", reply_markup=with_kb
+            sent_msg = None
+            try:
+                photo_file = BufferedInputFile(img_bytes, filename=f"slip-{order.code}.{ext}")
+                sent_msg = await bot.send_photo(
+                    chat_id=settings.admin_ids[0],
+                    photo=photo_file,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=with_kb,
+                )
+            except Exception:
+                log.exception("failed to send photo to admin; falling back to text message")
+                with contextlib.suppress(Exception):
+                    sent_msg = await bot.send_message(
+                        settings.admin_ids[0], caption, parse_mode="HTML", reply_markup=with_kb
+                    )
+
+            if sent_msg is not None and getattr(sent_msg, "photo", None):
+                # Update orders table with real Telegram photo file_id for future retrieval
+                tg_file_id = sent_msg.photo[-1].file_id
+                await svc.db.execute(
+                    "UPDATE orders SET screenshot_file_id=? WHERE code=?",
+                    (tg_file_id, order.code),
                 )
 
         return {
@@ -336,6 +397,39 @@ def create_webapp(
         }
 
     # ---------------- Web Admin Panel API ----------------
+    @app.get("/api/admin/orders/{code}/screenshot")
+    async def api_admin_order_screenshot(
+        code: str,
+        _admin: WebAppUser = Depends(require_admin),
+    ) -> Response:
+        shots_dir = settings.data_dir / "screenshots"
+        for ext, mime in [
+            ("jpg", "image/jpeg"),
+            ("jpeg", "image/jpeg"),
+            ("png", "image/png"),
+            ("webp", "image/webp"),
+        ]:
+            p = shots_dir / f"{code}.{ext}"
+            if p.is_file():
+                return Response(content=p.read_bytes(), media_type=mime)
+
+        row = await svc.db.fetchone("SELECT screenshot_file_id FROM orders WHERE code=?", (code,))
+        if (
+            row
+            and row["screenshot_file_id"]
+            and bot is not None
+            and not str(row["screenshot_file_id"]).startswith("web-")
+        ):
+            with contextlib.suppress(Exception):
+                f_info = await bot.get_file(row["screenshot_file_id"])
+                if f_info.file_path:
+                    dest = shots_dir / f"{code}.jpg"
+                    shots_dir.mkdir(parents=True, exist_ok=True)
+                    await bot.download_file(f_info.file_path, destination=dest)
+                    return Response(content=dest.read_bytes(), media_type="image/jpeg")
+
+        raise HTTPException(status_code=404, detail="Screenshot not found")
+
     @app.get("/api/admin/overview")
     async def api_admin_overview(
         _admin: WebAppUser = Depends(require_admin),
@@ -346,8 +440,15 @@ def create_webapp(
             "ORDER BY o.created_at DESC LIMIT 40"
         )
         orders_out = []
+        shots_dir = settings.data_dir / "screenshots"
         for r in order_rows:
             kv = await svc.get_key(int(r["user_id"]))
+            code = r["code"]
+            has_shot = bool(
+                r["screenshot_file_id"]
+                or r["screenshot_unique_id"]
+                or any((shots_dir / f"{code}.{ext}").is_file() for ext in ("jpg", "png", "webp", "jpeg"))
+            )
             orders_out.append({
                 "code": r["code"],
                 "user_id": int(r["user_id"]),
@@ -356,7 +457,7 @@ def create_webapp(
                 "amount": int(r["amount"]),
                 "amount_text": fmt_mmk(int(r["amount"])),
                 "state": r["state"],
-                "screenshot": r["screenshot_file_id"] or "",
+                "screenshot": f"/api/admin/orders/{r['code']}/screenshot" if has_shot else "",
                 "created_at": fmt_date(int(r["created_at"])),
                 "key_email": kv.email if kv else "-",
                 "key_status": kv.status if kv else "none",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 
 from aiogram import Bot, F, Router
@@ -131,6 +132,13 @@ def build_payments_router() -> Router:
                 branded(e.message()), parse_mode="HTML", reply_markup=order_created_kb(code)
             )
             return
+
+        with contextlib.suppress(Exception):
+            shots_dir = settings.data_dir / "screenshots"
+            shots_dir.mkdir(parents=True, exist_ok=True)
+            f_info = await bot.get_file(best_photo.file_id)
+            if f_info.file_path:
+                await bot.download_file(f_info.file_path, destination=shots_dir / f"{code}.jpg")
 
         await state.clear()
         kv = await svc.get_key(uid)

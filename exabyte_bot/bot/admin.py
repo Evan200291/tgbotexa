@@ -180,7 +180,7 @@ def build_admin_router() -> Router:
         )
 
     @r.callback_query(F.data == "adm:pend")
-    async def cb_pending(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
+    async def cb_pending(cb: CallbackQuery, svc: Service, bot: Bot, settings: Settings) -> None:
         await cb.answer()
         chat_id = cb.message.chat.id if cb.message else cb.from_user.id
         orders = await svc.pending_orders()
@@ -207,15 +207,39 @@ def build_admin_router() -> Router:
             kb = admin_order_review_kb(
                 o.code, o.user_id, key_enabled=kv.enabled if kv else True
             )
-            if o.screenshot_file_id:
-                await bot.send_photo(
-                    chat_id,
-                    photo=o.screenshot_file_id,
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_markup=kb,
-                )
-            else:
+            sent = False
+            if o.screenshot_file_id and not o.screenshot_file_id.startswith("web-"):
+                try:
+                    await bot.send_photo(
+                        chat_id,
+                        photo=o.screenshot_file_id,
+                        caption=caption,
+                        parse_mode="HTML",
+                        reply_markup=kb,
+                    )
+                    sent = True
+                except Exception:
+                    sent = False
+
+            if not sent:
+                shots_dir = settings.data_dir / "screenshots"
+                for ext in ("jpg", "png", "jpeg", "webp"):
+                    p = shots_dir / f"{o.code}.{ext}"
+                    if p.is_file():
+                        try:
+                            await bot.send_photo(
+                                chat_id,
+                                photo=BufferedInputFile(p.read_bytes(), filename=f"slip-{o.code}.{ext}"),
+                                caption=caption,
+                                parse_mode="HTML",
+                                reply_markup=kb,
+                            )
+                            sent = True
+                            break
+                        except Exception:
+                            sent = False
+
+            if not sent:
                 await bot.send_message(
                     chat_id,
                     caption,
