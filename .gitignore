@@ -1,0 +1,30 @@
+# --- secrets (repo is PUBLIC) ---
+.env
+.env.*
+!.env.example
+
+# --- runtime data ---
+data/
+backups/
+*.db
+*.db-wal
+*.db-shm
+*.log
+caddy_data/
+caddy_config/
+
+# --- private reference material / raw brand sources ---
+reference/
+exabyte-jpgs/
+exabyte-jpgs.zip
+
+# --- python / tooling ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.idea/
+.vscode/
+node_modules/

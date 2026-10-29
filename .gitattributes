@@ -1,0 +1,5 @@
+# LF everywhere: shell scripts and the git hook break with CRLF on Linux/VPS.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.woff2 binary
