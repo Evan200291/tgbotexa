@@ -11,6 +11,9 @@ services:
       - TZ=Asia/Yangon
     volumes:
       - ./data:/app/data
+    extra_hosts:
+      - "tpone.lhpvpn.online:host-gateway"
+      - "host.docker.internal:host-gateway"
     expose:
       - "8080"
     networks:
