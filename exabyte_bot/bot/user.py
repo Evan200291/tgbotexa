@@ -18,12 +18,15 @@ from .messages import (
     back_home_kb,
     branded,
     format_key_message,
+    format_plans_message,
     format_usage_message,
     guide_detail_kb,
     guide_menu_kb,
     key_kb,
     key_server_switch_kb,
     main_menu_kb,
+    plans_kb,
+    reply_menu_kb,
     support_kb,
 )
 
@@ -65,7 +68,62 @@ def build_user_router() -> Router:
     async def cmd_start(msg: Message, settings: Settings, state: FSMContext) -> None:
         await state.clear()
         await msg.answer(
-            branded(t("welcome_body")), parse_mode="HTML", reply_markup=main_menu_kb(settings)
+            branded(t("welcome_body")), parse_mode="HTML", reply_markup=reply_menu_kb(settings)
+        )
+
+    @r.message(F.text.in_({"start", "Start", "START", "🏠 ပင်မမီနူး", "ပင်မမီနူး"}))
+    async def msg_home(msg: Message, settings: Settings, state: FSMContext) -> None:
+        await state.clear()
+        await msg.answer(
+            branded(t("welcome_body")), parse_mode="HTML", reply_markup=reply_menu_kb(settings)
+        )
+
+    @r.message(F.text.contains("အခမဲ့ စမ်းသပ်"))
+    async def msg_trial(msg: Message, svc: Service, bot: Bot) -> None:
+        uid = msg.from_user.id if msg.from_user else msg.chat.id
+        try:
+            kv = await svc.claim_trial(uid)
+        except ServiceError as e:
+            await msg.answer(
+                branded(e.message()), parse_mode="HTML", reply_markup=back_home_kb()
+            )
+            return
+        except PanelUnavailable:
+            await msg.answer(
+                branded(t("panel_down")), parse_mode="HTML", reply_markup=back_home_kb()
+            )
+            return
+        intro = t("trial_ok", gb=P.TRIAL_QUOTA_GB, days=P.TRIAL_DAYS)
+        await send_key_card(bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc)
+
+    @r.message(F.text.contains("Plan ဝယ်မည်"))
+    async def msg_plans(msg: Message) -> None:
+        await msg.answer(
+            format_plans_message(), parse_mode="HTML", reply_markup=plans_kb()
+        )
+
+    @r.message(F.text.contains("ကျွန်ုပ်၏ Key") | F.text.contains("သုံးစွဲမှု"))
+    async def msg_my_key(msg: Message, svc: Service, settings: Settings, bot: Bot) -> None:
+        uid = msg.from_user.id if msg.from_user else msg.chat.id
+        keys = await svc.list_keys(uid)
+        if not keys:
+            await msg.answer(
+                branded(t("no_key")), parse_mode="HTML", reply_markup=back_home_kb()
+            )
+            return
+        for kv in keys:
+            await send_key_card(bot, msg.chat.id, kv, svc.now(), svc=svc, settings=settings)
+
+    @r.message(F.text.contains("ထည့်သွင်းနည်း"))
+    async def msg_guide(msg: Message) -> None:
+        await msg.answer(
+            branded(t("guide_menu")), parse_mode="HTML", reply_markup=guide_menu_kb()
+        )
+
+    @r.message(F.text.contains("Support"))
+    async def msg_support(msg: Message, settings: Settings) -> None:
+        await msg.answer(
+            branded(t("support_body")), parse_mode="HTML", reply_markup=support_kb(settings)
         )
 
     @r.message(Command("help"))
@@ -260,7 +318,7 @@ def build_fallback_router() -> Router:
     @r.message(StateFilter(None))
     async def unknown_message(msg: Message, settings: Settings) -> None:
         await msg.answer(
-            branded(t("unknown_message")), parse_mode="HTML", reply_markup=main_menu_kb(settings)
+            branded(t("unknown_message")), parse_mode="HTML", reply_markup=reply_menu_kb(settings)
         )
 
     @r.callback_query()

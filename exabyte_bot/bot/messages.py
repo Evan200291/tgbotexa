@@ -8,7 +8,13 @@ from __future__ import annotations
 from datetime import datetime
 from html import escape
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    WebAppInfo,
+)
 
 from .. import packages as P
 from ..config import Settings
@@ -45,10 +51,19 @@ def format_key_message(
 ) -> str:
     void_sub = sub_url
     del void_sub
+    if kv.unlimited:
+        usage_line = f"<b>Unlimited</b> (သုံးပြီး: <b>{fmt_bytes(kv.used_bytes)}</b>)"
+    else:
+        bar, pct = progress_bar(kv.used_bytes, kv.quota_bytes)
+        usage_line = (
+            f"{bar} <b>{pct}%</b> (<b>{fmt_bytes(kv.used_bytes)}</b> / "
+            f"<b>{fmt_bytes(kv.quota_bytes)}</b> • ကျန် <b>{fmt_bytes(kv.remaining_bytes)}</b>)"
+        )
     body = t(
         "key_card",
         kind=t("kind_paid" if kv.kind == "paid" else "kind_trial"),
         status=status_label(kv.status),
+        usage_line=usage_line,
         expiry_date=fmt_date(kv.expiry_ms),
         days_left=days_left(kv.expiry_ms, now),
         link=escape(kv.link),
@@ -177,29 +192,57 @@ def format_order_message(order: Order, settings: Settings) -> str:
 
 
 # ---------------------------------------------------------------- keyboards
-def main_menu_kb(settings: Settings) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = []
+def reply_menu_kb(settings: Settings) -> ReplyKeyboardMarkup:
+    """Persistent bottom reply keyboard (below the typing text bar), 2 buttons per row."""
+    rows: list[list[KeyboardButton]] = [
+        [
+            KeyboardButton(text=t("btn_trial")),
+            KeyboardButton(text=t("btn_buy")),
+        ],
+        [
+            KeyboardButton(text=t("btn_my_key")),
+            KeyboardButton(text=t("btn_guide")),
+        ],
+    ]
     if settings.bot_domain:
         rows.append([
-            InlineKeyboardButton(
+            KeyboardButton(
                 text=t("btn_open_app"),
                 web_app=WebAppInfo(url=f"https://{settings.bot_domain}"),
-            )
+            ),
+            KeyboardButton(text=t("btn_support")),
         ])
-    rows.extend([
+    else:
+        rows.append([
+            KeyboardButton(text=t("btn_support")),
+            KeyboardButton(text=t("btn_home")),
+        ])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, is_persistent=True)
+
+
+def main_menu_kb(settings: Settings) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
         [
             InlineKeyboardButton(text=t("btn_trial"), callback_data="nav:trial"),
             InlineKeyboardButton(text=t("btn_buy"), callback_data="nav:plans"),
         ],
         [
             InlineKeyboardButton(text=t("btn_my_key"), callback_data="nav:key"),
-            InlineKeyboardButton(text=t("btn_usage"), callback_data="nav:usage"),
-        ],
-        [
             InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide"),
-            InlineKeyboardButton(text=t("btn_support"), callback_data="nav:support"),
         ],
-    ])
+    ]
+    if settings.bot_domain:
+        rows.append([
+            InlineKeyboardButton(
+                text=t("btn_open_app"),
+                web_app=WebAppInfo(url=f"https://{settings.bot_domain}"),
+            ),
+            InlineKeyboardButton(text=t("btn_support"), callback_data="nav:support"),
+        ])
+    else:
+        rows.append([
+            InlineKeyboardButton(text=t("btn_support"), callback_data="nav:support"),
+        ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -302,10 +345,14 @@ def order_created_kb(code: str) -> InlineKeyboardMarkup:
 def guide_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=t("btn_guide_android"), callback_data="guide:android")],
-            [InlineKeyboardButton(text=t("btn_guide_ios"), callback_data="guide:ios")],
-            [InlineKeyboardButton(text=t("btn_guide_desktop"), callback_data="guide:desktop")],
-            [InlineKeyboardButton(text=t("back"), callback_data="nav:home")],
+            [
+                InlineKeyboardButton(text=t("btn_guide_android"), callback_data="guide:android"),
+                InlineKeyboardButton(text=t("btn_guide_ios"), callback_data="guide:ios"),
+            ],
+            [
+                InlineKeyboardButton(text=t("btn_guide_desktop"), callback_data="guide:desktop"),
+                InlineKeyboardButton(text=t("back"), callback_data="nav:home"),
+            ],
         ]
     )
 
