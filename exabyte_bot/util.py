@@ -78,3 +78,24 @@ def new_client_email(telegram_id: int) -> str:
 
 def new_sub_id() -> str:
     return secrets.token_hex(8)
+
+
+# Myanmar Standard Time (UTC+6:30, no DST) for local dates and 'today'/'this month' stats.
+MMT = timedelta(hours=6, minutes=30)
+
+
+def fmt_date(ms: int) -> str:
+    return (from_ms(ms) + MMT).strftime("%Y-%m-%d %H:%M")
+
+
+def local_day_start_ms(now: datetime) -> int:
+    local = now.astimezone(UTC) + MMT
+    start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return to_ms(start - MMT)
+
+
+def local_month_start_ms(now: datetime) -> int:
+    local = now.astimezone(UTC) + MMT
+    start = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return to_ms(start - MMT)
+

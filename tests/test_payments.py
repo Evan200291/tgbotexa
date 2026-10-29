@@ -120,3 +120,4 @@ async def test_approve_upgrades_trial(svc: Service, user, panel):
     res = await svc.approve_order(o.code, ADMIN)
     assert res.key.email == trial.email and res.key.kind == "paid"
     assert len(panel.clients()) == 1
+

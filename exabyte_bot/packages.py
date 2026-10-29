@@ -53,13 +53,13 @@ class Plan:
 
 
 PLANS: tuple[Plan, ...] = (
-    Plan(id="vpn_1m", category="vpn", name="၁ လ", months=1, days=1 * DAYS_PER_MONTH),
+    Plan(id="vpn_1m", category="vpn", name="1 လ", months=1, days=1 * DAYS_PER_MONTH),
     Plan(
-        id="vpn_3m", category="vpn", name="၃ လ", months=3, days=3 * DAYS_PER_MONTH,
+        id="vpn_3m", category="vpn", name="3 လ", months=3, days=3 * DAYS_PER_MONTH,
         discount_mmk=500, badge="badge_save",
     ),
     Plan(
-        id="vpn_6m", category="vpn", name="၆ လ", months=6, days=6 * DAYS_PER_MONTH,
+        id="vpn_6m", category="vpn", name="6 လ", months=6, days=6 * DAYS_PER_MONTH,
         discount_mmk=1_000, badge="badge_best", best_value=True,
     ),
 )
@@ -73,3 +73,4 @@ def get_plan(plan_id: str) -> Plan | None:
 
 def plans_in(category: str) -> list[Plan]:
     return [p for p in PLANS if p.category == category]
+

@@ -314,3 +314,4 @@ def _json(resp: httpx.Response) -> dict[str, Any]:
 def _safe_path(path: str) -> str:
     # Paths are relative to the secret base, so they are safe; strip emails' query noise.
     return path.split("?")[0]
+

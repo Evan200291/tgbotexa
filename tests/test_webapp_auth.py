@@ -28,3 +28,4 @@ def test_admin_ids_parsing_and_secret_repr(monkeypatch):
     s = Settings(_env_file=None)
     assert s.admin_ids == [1877867098, 42] and s.is_admin(42)
     assert "super-secret-value" not in repr(s)
+

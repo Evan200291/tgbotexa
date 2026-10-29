@@ -28,3 +28,4 @@ def test_no_raw_hex_colors_outside_theme_css():
                 if not re.search(r"""(href|data-target)=["']$""", line[: m.start()]):
                     offenders.append(f"{f.relative_to(ROOT)}:{n}: {m.group()}")
     assert not offenders, "Raw colours outside theme.css:\n" + "\n".join(offenders)
+

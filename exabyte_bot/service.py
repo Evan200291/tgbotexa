@@ -10,6 +10,8 @@ Rules of thumb used throughout:
 from __future__ import annotations
 
 import asyncio
+import csv
+import io
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
@@ -31,6 +33,8 @@ from .util import (
     fmt_mmk,
     from_ms,
     iso,
+    local_day_start_ms,
+    local_month_start_ms,
     new_client_email,
     new_order_code,
     new_sub_id,
@@ -576,3 +580,189 @@ class Service:
                     comment=row["plan_id"] or ""))
             refreshed.append(self._view(row))
         return refreshed
+
+    # ----- notifications (each event fires once per subscription lifecycle)
+    async def collect_notifications(self) -> list[tuple[int, str, KeyView]]:
+        """Return (user_id, event_name, key_view) for unsent alerts."""
+        now_ms = self._now_ms()
+        events: list[tuple[int, str, KeyView]] = []
+        rows = await self.db.fetchall(
+            "SELECT s.* FROM subscriptions s JOIN users u ON u.telegram_id=s.user_id "
+            "WHERE u.blocked_bot=0 AND u.banned=0 AND s.enabled=1"
+        )
+        for row in rows:
+            flags = {f for f in (row["notified_flags"] or "").split(",") if f}
+            kv = self._view(row)
+            rem_ms = row["expiry_ms"] - now_ms
+            if rem_ms <= 0 and "expired" not in flags:
+                events.append((row["user_id"], "expired", kv))
+            elif 0 < rem_ms <= MS_PER_DAY and "expiring_1d" not in flags:
+                events.append((row["user_id"], "expiring_1d", kv))
+            if row["kind"] == "trial" and row["quota_bytes"] > 0:
+                ratio = row["used_bytes"] / row["quota_bytes"]
+                if ratio >= 1.0 and "quota_100" not in flags:
+                    events.append((row["user_id"], "quota_100", kv))
+                elif ratio >= 0.8 and "quota_80" not in flags:
+                    events.append((row["user_id"], "quota_80", kv))
+        return events
+
+    async def mark_notified(self, tg_id: int, event: str) -> None:
+        row = await self._sub_row(tg_id)
+        if not row:
+            return
+        flags = {f for f in (row["notified_flags"] or "").split(",") if f}
+        flags.add(event)
+        await self.db.execute(
+            "UPDATE subscriptions SET notified_flags=? WHERE user_id=?",
+            (",".join(sorted(flags)), tg_id),
+        )
+
+    async def mark_blocked(self, tg_id: int) -> None:
+        await self.db.execute("UPDATE users SET blocked_bot=1 WHERE telegram_id=?", (tg_id,))
+
+    # ----- admin operations (all audited)
+    async def pending_orders(self) -> list[Order]:
+        rows = await self.db.fetchall(
+            "SELECT * FROM orders WHERE state='awaiting_review' ORDER BY submitted_at ASC"
+        )
+        return [Order.from_row(r) for r in rows]
+
+    async def stats(self) -> dict[str, int]:
+        now = self.now()
+        now_ms = to_ms(now)
+        day_ms = local_day_start_ms(now)
+        month_ms = local_month_start_ms(now)
+        u = await self.db.fetchone("SELECT COUNT(*) AS c FROM users")
+        paid = await self.db.fetchone(
+            "SELECT COUNT(*) AS c FROM subscriptions WHERE kind='paid' AND enabled=1 AND expiry_ms>?",
+            (now_ms,),
+        )
+        trial = await self.db.fetchone(
+            "SELECT COUNT(*) AS c FROM subscriptions WHERE kind='trial' AND enabled=1 AND expiry_ms>?"
+            " AND (quota_bytes=0 OR used_bytes<quota_bytes)",
+            (now_ms,),
+        )
+        pend = await self.db.fetchone(
+            "SELECT COUNT(*) AS c FROM orders WHERE state='awaiting_review'"
+        )
+        rev_day = await self.db.fetchone(
+            "SELECT COALESCE(SUM(amount),0) AS s FROM orders WHERE state='approved' AND reviewed_at>=?",
+            (day_ms,),
+        )
+        rev_month = await self.db.fetchone(
+            "SELECT COALESCE(SUM(amount),0) AS s FROM orders WHERE state='approved' AND reviewed_at>=?",
+            (month_ms,),
+        )
+        return {
+            "total_users": int(u["c"]) if u else 0,
+            "active_paid": int(paid["c"]) if paid else 0,
+            "active_trials": int(trial["c"]) if trial else 0,
+            "pending_orders": int(pend["c"]) if pend else 0,
+            "today_revenue": int(rev_day["s"]) if rev_day else 0,
+            "month_revenue": int(rev_month["s"]) if rev_month else 0,
+        }
+
+    async def find_user(self, query: str) -> dict[str, Any] | None:
+        q = query.strip().lstrip("@")
+        if q.isdigit():
+            u = await self.db.fetchone("SELECT * FROM users WHERE telegram_id=?", (int(q),))
+        else:
+            u = await self.db.fetchone(
+                "SELECT * FROM users WHERE username = ? COLLATE NOCASE", (q,)
+            )
+        if not u:
+            return None
+        uid = int(u["telegram_id"])
+        oc = await self.db.fetchone("SELECT COUNT(*) AS c FROM orders WHERE user_id=?", (uid,))
+        return {
+            "user_id": uid,
+            "username": u["username"] or "-",
+            "banned": bool(u["banned"]),
+            "key": await self.get_key(uid),
+            "order_count": int(oc["c"]) if oc else 0,
+        }
+
+    async def admin_adjust_key(
+        self, admin_id: int, tg_id: int, *, add_days: int = 0, add_gb: int = 0
+    ) -> KeyView:
+        async with self._lock(tg_id):
+            sub = await self._sub_row(tg_id)
+            if sub is None:
+                raise NoKey()
+            now_ms = self._now_ms()
+            base_exp = max(int(sub["expiry_ms"]), now_ms) if add_days > 0 else int(sub["expiry_ms"])
+            new_exp = base_exp + add_days * MS_PER_DAY
+            cur_quota = int(sub["quota_bytes"])
+            new_quota = cur_quota + add_gb * GB if (cur_quota > 0 and add_gb > 0) else cur_quota
+            await self.xui.update_client(
+                self.inbound.id,
+                self._spec(
+                    tg_id, sub["xui_email"], sub["password"], sub["sub_id"],
+                    new_quota, new_exp, 1, enable=True, comment=sub["plan_id"] or "",
+                ),
+            )
+            async with self.db.transaction() as tx:
+                await tx.execute(
+                    "UPDATE subscriptions SET expiry_ms=?, quota_bytes=?, enabled=1,"
+                    " notified_flags='' WHERE user_id=?",
+                    (new_exp, new_quota, tg_id),
+                )
+        await self.db.audit(
+            admin_id, "admin_adjust_key", str(tg_id),
+            {"add_days": add_days, "add_gb": add_gb}, self._now_ms(),
+        )
+        key = await self.get_key(tg_id)
+        assert key is not None
+        return key
+
+    async def admin_revoke_key(self, admin_id: int, tg_id: int) -> None:
+        async with self._lock(tg_id):
+            sub = await self._sub_row(tg_id)
+            if sub is None:
+                raise NoKey()
+            await self.xui.delete_client(self.inbound.id, sub["xui_email"])
+            async with self.db.transaction() as tx:
+                await tx.execute("DELETE FROM subscriptions WHERE user_id=?", (tg_id,))
+        await self.db.audit(admin_id, "admin_revoke_key", str(tg_id), None, self._now_ms())
+
+    async def admin_set_banned(self, admin_id: int, tg_id: int, banned: bool) -> None:
+        await self.db.execute(
+            "UPDATE users SET banned=? WHERE telegram_id=?", (int(banned), tg_id)
+        )
+        await self.db.audit(
+            admin_id, "ban_user" if banned else "unban_user", str(tg_id), None, self._now_ms()
+        )
+
+    async def is_maintenance(self) -> bool:
+        return (await self.db.get_setting("maintenance", "0")) == "1"
+
+    async def toggle_maintenance(self, admin_id: int) -> bool:
+        new_val = not (await self.is_maintenance())
+        await self.db.set_setting("maintenance", "1" if new_val else "0")
+        await self.db.audit(
+            admin_id, "maintenance_toggle", None, {"enabled": new_val}, self._now_ms()
+        )
+        return new_val
+
+    async def broadcast_recipients(self) -> list[int]:
+        rows = await self.db.fetchall(
+            "SELECT telegram_id FROM users WHERE blocked_bot=0 AND banned=0 ORDER BY telegram_id"
+        )
+        return [int(r["telegram_id"]) for r in rows]
+
+    async def export_orders_csv(self, admin_id: int) -> bytes:
+        rows = await self.db.fetchall("SELECT * FROM orders ORDER BY created_at DESC")
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        cols = [
+            "code", "user_id", "plan_id", "amount", "state",
+            "reviewed_by", "reason", "created_at", "submitted_at", "reviewed_at",
+        ]
+        writer.writerow(cols)
+        for r in rows:
+            writer.writerow([r[c] for c in cols])
+        await self.db.audit(
+            admin_id, "export_orders_csv", None, {"rows": len(rows)}, self._now_ms()
+        )
+        return buf.getvalue().encode("utf-8")
+

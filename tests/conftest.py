@@ -74,3 +74,4 @@ ADMIN = 1877867098
 async def user(svc: Service) -> int:
     await svc.ensure_user(USER, "alice", "Alice")
     return USER
+
