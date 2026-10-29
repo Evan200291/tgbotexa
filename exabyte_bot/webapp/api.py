@@ -134,6 +134,12 @@ def create_webapp(
             "maintenance": await svc.is_maintenance(),
         }
 
+    # ---------------- Health Check ----------------
+    @app.get("/healthz")
+    @app.get("/health")
+    async def health_check() -> dict[str, str]:
+        return {"status": "ok"}
+
     # ---------------- HTML pages & Subscription URL ----------------
     @app.get("/", response_class=HTMLResponse)
     @app.get("/admin", response_class=HTMLResponse)

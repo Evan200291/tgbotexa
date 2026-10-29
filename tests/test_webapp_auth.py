@@ -232,3 +232,14 @@ async def test_multi_panel_key_combinations(svc: Service, user: int):
     assert panel2.client(kv.email)["enable"] is False
 
     await svc.delete_panel(ADMIN, 1)
+
+
+async def test_healthcheck_endpoint(svc: Service):
+    settings = Settings(
+        _env_file=None, bot_token=SecretStr(FAKE_TOKEN), environment="development", dev_mode=True
+    )
+    app = create_webapp(svc, settings)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/healthz")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok"}
