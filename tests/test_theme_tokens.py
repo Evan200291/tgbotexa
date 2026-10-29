@@ -45,18 +45,18 @@ def test_no_raw_hex_colors_outside_theme_css():
 
 
 def test_wcag_contrast_ratios_in_dark_and_light_themes():
-    # Dark theme text/background pairs (must all be >= 4.5:1 for normal text)
-    assert contrast_ratio("#F7EFDD", "#120B0C") >= 4.5
-    assert contrast_ratio("#F7EFDD", "#1F1416") >= 4.5
-    assert contrast_ratio("#BFAE95", "#120B0C") >= 4.5
-    assert contrast_ratio("#BFAE95", "#1F1416") >= 4.5
-    assert contrast_ratio("#F3D98B", "#1F1416") >= 4.5
-    assert contrast_ratio("#1A1012", "#D4A23A") >= 4.5  # primary gold button text
+    # Dark theme text/background pairs (Cyber Blues — must all be >= 4.5:1)
+    assert contrast_ratio("#F0F6FC", "#070B14") >= 4.5
+    assert contrast_ratio("#F0F6FC", "#10192E") >= 4.5
+    assert contrast_ratio("#94A3B8", "#070B14") >= 4.5
+    assert contrast_ratio("#94A3B8", "#10192E") >= 4.5
+    assert contrast_ratio("#38BDF8", "#10192E") >= 4.5
+    assert contrast_ratio("#040E1A", "#00F0FF") >= 4.5  # primary electric cyan button text
 
-    # Light theme text/background pairs (including #8A5A0C gold text on light surfaces)
-    assert contrast_ratio("#2A1A14", "#FAF4E6") >= 4.5
-    assert contrast_ratio("#2A1A14", "#FFFFFF") >= 4.5
-    assert contrast_ratio("#6B5646", "#FAF4E6") >= 4.5
-    assert contrast_ratio("#6B5646", "#FFFFFF") >= 4.5
-    assert contrast_ratio("#8A5A0C", "#FAF4E6") >= 4.5
-    assert contrast_ratio("#8A5A0C", "#FFFFFF") >= 4.5
+    # Light theme text/background pairs (Deep Cyber Cobalt & Slate)
+    assert contrast_ratio("#0B132B", "#F4F7FB") >= 4.5
+    assert contrast_ratio("#0B132B", "#FFFFFF") >= 4.5
+    assert contrast_ratio("#475569", "#F4F7FB") >= 4.5
+    assert contrast_ratio("#475569", "#FFFFFF") >= 4.5
+    assert contrast_ratio("#0369A1", "#F4F7FB") >= 4.5
+    assert contrast_ratio("#0369A1", "#FFFFFF") >= 4.5

@@ -22,3 +22,4 @@ start - ✨ ပင်မမီနူး နှင့် Mini App ဖွင့်
 myid - 🔑 မိမိ Telegram ID စစ်ဆေးရန်
 help - 🛡️ အသုံးပြုပုံ လမ်းညွှန်
 admin - ⚙️ Admin Panel (Admin များသာ)
+

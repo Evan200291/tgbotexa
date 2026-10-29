@@ -16,42 +16,42 @@ OUT = ROOT / "exabyte_bot" / "webapp" / "static" / "brand" / "avatar-640.png"
 
 def export_avatar(dest: Path = OUT, size: int = 640) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
-    # Render at 2x and downsample with LANCZOS for crisp anti-aliased edges.
     scale = 2
     s = size * scale
-    img = Image.new("RGBA", (s, s), (18, 11, 12, 255))
+    img = Image.new("RGBA", (s, s), (10, 15, 29, 255))
     draw = ImageDraw.Draw(img)
 
-    # Vertical gradient background (#2A1B1E -> #120B0C)
+    # Vertical gradient background (#10192E -> #050811)
     for y in range(s):
         t = y / s
-        r = int(42 * (1 - t) + 18 * t)
-        g = int(27 * (1 - t) + 11 * t)
-        b = int(30 * (1 - t) + 12 * t)
+        r = int(16 * (1 - t) + 5 * t)
+        g = int(25 * (1 - t) + 8 * t)
+        b = int(46 * (1 - t) + 17 * t)
         draw.line([(0, y), (s, y)], fill=(r, g, b, 255))
 
-    # Outer gold border frame
+    # Outer cyber cyan/blue border frame
     pad = int(s * 0.04)
     draw.rounded_rectangle(
         [pad, pad, s - pad, s - pad],
         radius=int(s * 0.18),
-        outline=(212, 162, 58, 255),
+        outline=(0, 240, 255, 255),
         width=int(s * 0.016),
     )
 
-    # Subtle pagoda hti crown accent at top center
-    cx = s // 2
-    draw.polygon(
-        [(cx, int(s * 0.09)), (cx + int(s * 0.025), int(s * 0.14)), (cx - int(s * 0.025), int(s * 0.14))],
-        fill=(243, 217, 139, 110),
-    )
+    # Cyber corner HUD accents
+    corner_len = int(s * 0.08)
+    cyan = (0, 240, 255, 255)
+    draw.line([(pad + 10, pad + 10), (pad + 10 + corner_len, pad + 10)], fill=cyan, width=6)
+    draw.line([(pad + 10, pad + 10), (pad + 10, pad + 10 + corner_len)], fill=cyan, width=6)
+    draw.line([(s - pad - 10, pad + 10), (s - pad - 10 - corner_len, pad + 10)], fill=cyan, width=6)
+    draw.line([(s - pad - 10, pad + 10), (s - pad - 10, pad + 10 + corner_len)], fill=cyan, width=6)
 
-    # Exabyte geometric 'E' symbol in warm Shwedagon gold (#E5BA58)
-    gold = (229, 186, 88, 255)
+    # Exabyte geometric 'E' symbol in Electric Cyan (#00F0FF)
+    cyber_cyan = (0, 240, 255, 255)
     # Left vertical bar
     x0, y0, y1 = int(s * 0.203), int(s * 0.195), int(s * 0.805)
     w_bar = int(s * 0.141)
-    draw.rectangle([x0, y0, x0 + w_bar, y1], fill=gold)
+    draw.rectangle([x0, y0, x0 + w_bar, y1], fill=cyber_cyan)
 
     # Three right-hand angled bars
     rx = int(s * 0.395)
@@ -60,16 +60,16 @@ def export_avatar(dest: Path = OUT, size: int = 640) -> Path:
 
     # Top bar
     rt = int(s * 0.797)
-    draw.polygon([(rx, y0), (rt, y0), (rt - cut, y0 + bh), (rx, y0 + bh)], fill=gold)
+    draw.polygon([(rx, y0), (rt, y0), (rt - cut, y0 + bh), (rx, y0 + bh)], fill=cyber_cyan)
 
     # Middle bar
     ym = int(s * 0.430)
     rm = int(s * 0.648)
-    draw.polygon([(rx, ym), (rm, ym), (rm - cut, ym + bh), (rx, ym + bh)], fill=gold)
+    draw.polygon([(rx, ym), (rm, ym), (rm - cut, ym + bh), (rx, ym + bh)], fill=cyber_cyan)
 
     # Bottom bar
     yb = y1 - bh
-    draw.polygon([(rx, yb), (rt, yb), (rt - cut, y1), (rx, y1)], fill=gold)
+    draw.polygon([(rx, yb), (rt, yb), (rt - cut, y1), (rx, y1)], fill=cyber_cyan)
 
     final = img.resize((size, size), Image.Resampling.LANCZOS)
     final.save(dest, format="PNG", optimize=True)

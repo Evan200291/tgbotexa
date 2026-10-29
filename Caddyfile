@@ -1,0 +1,24 @@
+# Exabyte Digital Store — Production Caddy Configuration
+# Reverse proxies tgbot.lhpvpn.online to the FastAPI/aiogram service on port 8080.
+# Let's Encrypt / ZeroSSL TLS certificates are provisioned and renewed automatically.
+
+{$DOMAIN:tgbot.lhpvpn.online} {
+    encode gzip zstd
+
+    # Security headers for web app and admin portal
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Proxy all traffic to the containerized Python service
+    reverse_proxy bot:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

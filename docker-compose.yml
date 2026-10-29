@@ -1,0 +1,39 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: exabyte-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    expose:
+      - "8080"
+    networks:
+      - exabyte-net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: exabyte-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - exabyte-net
+    depends_on:
+      - bot
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  exabyte-net:
+    driver: bridge

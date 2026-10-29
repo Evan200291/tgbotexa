@@ -125,3 +125,4 @@ def verify_admin_web_token(
     if not hmac.compare_digest(expected, sig):
         raise AuthError("Bad admin token signature")
     return WebAppUser(id=admin_id, first_name="Admin", username="admin")
+

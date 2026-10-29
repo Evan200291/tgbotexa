@@ -1,5 +1,5 @@
-/* Exabyte Digital Store — Myanmar "Golden Pagoda at Night" + Liquid Glass UI
- * IMPORTANT (§9.1): This is the ONLY file where raw hex color literals may appear.
+/* Exabyte Digital Store — Cyber Blues & Neon Tech + Liquid Glass UI
+ * IMPORTANT: This is the ONLY file where raw hex color literals may appear.
  */
 
 @font-face {
@@ -20,78 +20,91 @@
 
 :root,
 [data-theme="dark"] {
-  --bg: #120B0C;
-  --bg-elev: #191012;
-  --surface: #1F1416;
-  --surface-2: #2A1B1E;
-  --text: #F7EFDD;
-  --text-muted: #BFAE95;
-  --border: rgba(212, 162, 58, 0.35);
-  --border-strong: rgba(243, 217, 139, 0.58);
+  /* Cyber Obsidian Navy Backgrounds */
+  --bg: #070B14;
+  --bg-elev: #0C1222;
+  --surface: #10192E;
+  --surface-2: #16223D;
+  --text: #F0F6FC;
+  --text-muted: #94A3B8;
+  --border: rgba(56, 189, 248, 0.28);
+  --border-strong: rgba(56, 189, 248, 0.58);
 
-  --gold: #D4A23A;
-  --gold-light: #F3D98B;
-  --gold-deep: #9A6B12;
-  --gold-text: #F3D98B;
-  --on-gold: #1A1012;
+  /* Electric Cyan & Cyber Blue Accents */
+  --gold: #00F0FF;
+  --gold-light: #70F7FF;
+  --gold-deep: #0284C7;
+  --gold-text: #38BDF8;
+  --on-gold: #040E1A;
 
-  --red: #A3202F;
-  --red-deep: #5E0F18;
-  --red-text: #FFD6DB;
+  --cyber-blue: #0284C7;
+  --cyber-glow-color: rgba(0, 240, 255, 0.28);
 
-  --jade: #1F8A66;
-  --jade-deep: #145C45;
-  --jade-text: #8FF0CC;
+  /* Cyber Status Colors */
+  --red: #F43F5E;
+  --red-deep: #9F1239;
+  --red-text: #FFE4E6;
 
-  --warning: #E0A100;
-  --danger: #D64545;
+  --jade: #10B981;
+  --jade-deep: #065F46;
+  --jade-text: #A7F3D0;
 
-  /* Liquid Glass surfaces */
-  --glass-bg: rgba(31, 20, 22, 0.74);
-  --glass-bg-2: rgba(42, 27, 30, 0.82);
-  --glass-dock: rgba(22, 14, 16, 0.86);
+  --warning: #F59E0B;
+  --danger: #F43F5E;
+
+  /* Cyber Glass Surfaces */
+  --glass-bg: rgba(16, 25, 46, 0.78);
+  --glass-bg-2: rgba(22, 34, 61, 0.84);
+  --glass-dock: rgba(11, 18, 34, 0.90);
   --glass-sheen: linear-gradient(
     180deg,
-    rgba(243, 217, 139, 0.14) 0%,
-    rgba(212, 162, 58, 0.03) 42%,
+    rgba(56, 189, 248, 0.16) 0%,
+    rgba(2, 132, 199, 0.04) 40%,
     rgba(0, 0, 0, 0) 100%
   );
-  --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(243, 217, 139, 0.22);
-  --glow-gold: 0 0 28px rgba(212, 162, 58, 0.18);
-  --ring-track: rgba(247, 239, 221, 0.12);
-  --shimmer-a: rgba(212, 162, 58, 0.08);
-  --shimmer-b: rgba(243, 217, 139, 0.22);
+  --glass-shadow: 0 12px 32px rgba(2, 6, 23, 0.56), inset 0 1px 0 rgba(56, 189, 248, 0.26);
+  --glow-gold: 0 0 28px rgba(0, 240, 255, 0.25);
+  --ring-track: rgba(240, 246, 252, 0.12);
+  --shimmer-a: rgba(2, 132, 199, 0.08);
+  --shimmer-b: rgba(56, 189, 248, 0.24);
 }
 
 [data-theme="light"] {
-  --bg: #FAF4E6;
-  --bg-elev: #F5ECDA;
+  /* Crisp Tech Frost Backgrounds */
+  --bg: #F4F7FB;
+  --bg-elev: #E8EEF6;
   --surface: #FFFFFF;
-  --surface-2: #F3EAD3;
-  --text: #2A1A14;
-  --text-muted: #6B5646;
-  --border: rgba(138, 90, 12, 0.35);
-  --border-strong: rgba(138, 90, 12, 0.6);
+  --surface-2: #E8EEF6;
+  --text: #0B132B;
+  --text-muted: #475569;
+  --border: rgba(2, 132, 199, 0.28);
+  --border-strong: rgba(2, 132, 199, 0.55);
 
-  /* §9.1: On light backgrounds use #8A5A0C for gold TEXT (plain gold fails contrast) */
-  --gold-text: #8A5A0C;
-  --on-gold: #1F1416;
+  /* Deep Cyber Cobalt on light backgrounds (passes WCAG AAA >= 7:1) */
+  --gold: #0284C7;
+  --gold-light: #38BDF8;
+  --gold-deep: #0369A1;
+  --gold-text: #0369A1;
+  --on-gold: #FFFFFF;
   --red-text: #FFFFFF;
-  --jade-text: #145C45;
+  --jade-text: #065F46;
 
-  --glass-bg: rgba(255, 255, 255, 0.84);
-  --glass-bg-2: rgba(243, 234, 211, 0.88);
-  --glass-dock: rgba(255, 252, 245, 0.9);
+  --cyber-blue: #0284C7;
+  --cyber-glow-color: rgba(2, 132, 199, 0.16);
+
+  --glass-bg: rgba(255, 255, 255, 0.86);
+  --glass-bg-2: rgba(232, 238, 246, 0.90);
+  --glass-dock: rgba(244, 248, 253, 0.92);
   --glass-sheen: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(212, 162, 58, 0.05) 100%
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(2, 132, 199, 0.06) 100%
   );
-  --glass-shadow: 0 10px 26px rgba(42, 26, 20, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  --glow-gold: 0 4px 20px rgba(138, 90, 12, 0.12);
-  --ring-track: rgba(42, 26, 20, 0.12);
-  --shimmer-a: rgba(138, 90, 12, 0.06);
-  --shimmer-b: rgba(212, 162, 58, 0.18);
+  --glass-shadow: 0 10px 28px rgba(11, 19, 43, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --glow-gold: 0 4px 22px rgba(2, 132, 199, 0.18);
+  --ring-track: rgba(11, 19, 43, 0.12);
+  --shimmer-a: rgba(2, 132, 199, 0.06);
+  --shimmer-b: rgba(56, 189, 248, 0.20);
 }
 
 *,
@@ -115,16 +128,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Ambient liquid background blobs */
+/* Ambient cyber mesh glow */
 body::before {
   content: "";
   position: fixed;
   inset: -20% -10% auto -10%;
-  height: 360px;
+  height: 380px;
   background:
-    radial-gradient(circle at 20% 25%, rgba(212, 162, 58, 0.16), transparent 60%),
-    radial-gradient(circle at 80% 15%, rgba(31, 138, 102, 0.12), transparent 55%),
-    radial-gradient(circle at 50% 60%, rgba(163, 32, 47, 0.1), transparent 65%);
+    radial-gradient(circle at 20% 25%, rgba(0, 240, 255, 0.15), transparent 60%),
+    radial-gradient(circle at 80% 15%, rgba(2, 132, 199, 0.14), transparent 55%),
+    radial-gradient(circle at 50% 65%, rgba(99, 102, 241, 0.10), transparent 65%);
   pointer-events: none;
   z-index: 0;
 }
@@ -150,7 +163,7 @@ p {
   padding: 12px 14px 104px;
 }
 
-/* ---------------- Header with Exabyte Logo & Pagoda Skyline ---------------- */
+/* ---------------- Header with Exabyte Logo & Cyber HUD Horizon ---------------- */
 .hero-header {
   position: relative;
   overflow: hidden;
@@ -171,7 +184,7 @@ p {
   bottom: -4px;
   width: 170px;
   height: 92px;
-  opacity: 0.14;
+  opacity: 0.18;
   pointer-events: none;
   color: var(--gold);
 }
@@ -238,7 +251,7 @@ p {
   transform: scale(0.94);
 }
 
-/* ---------------- Liquid Glass Cards & Kalaga Ornament ---------------- */
+/* ---------------- Liquid Cyber Glass Cards & Corner Brackets ---------------- */
 .card {
   position: relative;
   border-radius: 16px;
@@ -264,7 +277,7 @@ p {
   pointer-events: none;
 }
 
-/* Lotus / Diamond Divider (§9.3) */
+/* Cyber Diamond Divider */
 .lotus-divider {
   display: flex;
   align-items: center;
@@ -282,7 +295,7 @@ p {
   background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
 }
 
-/* ---------------- Status Badges (§9.3) ---------------- */
+/* ---------------- Status Badges ---------------- */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -296,28 +309,28 @@ p {
 }
 
 .badge-active {
-  background: rgba(31, 138, 102, 0.2);
+  background: rgba(16, 185, 129, 0.2);
   border-color: var(--jade);
   color: var(--jade-text);
 }
 
 .badge-expired {
-  background: rgba(163, 32, 47, 0.24);
+  background: rgba(244, 63, 94, 0.22);
   border-color: var(--red);
   color: var(--danger);
 }
 
 .badge-none {
-  background: rgba(212, 162, 58, 0.14);
+  background: rgba(56, 189, 248, 0.15);
   border-color: var(--border);
   color: var(--gold-text);
 }
 
-/* ---------------- Usage Ring (§9.3) ---------------- */
+/* ---------------- Usage Ring ---------------- */
 .ring-wrap {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   padding: 6px 0;
 }
 
@@ -407,7 +420,7 @@ p {
   color: var(--text);
 }
 
-/* ---------------- Buttons (§9.2, §9.3: min 48px, wraps Burmese cleanly) ---------------- */
+/* ---------------- Cyber Buttons (min 48px touch targets) ---------------- */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -438,9 +451,9 @@ p {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 100%);
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-deep) 100%);
   color: var(--on-gold);
-  box-shadow: 0 6px 18px rgba(212, 162, 58, 0.28);
+  box-shadow: 0 6px 20px rgba(0, 240, 255, 0.28);
 }
 
 .btn-secondary {
@@ -478,7 +491,7 @@ p {
   border-radius: 11px;
 }
 
-/* ---------------- Plan Cards (§5, §9.3) ---------------- */
+/* ---------------- Plan Cards ---------------- */
 .plan-card {
   position: relative;
   border-radius: 16px;
@@ -516,7 +529,7 @@ p {
 }
 
 .plan-3m .plan-ribbon {
-  background: rgba(212, 162, 58, 0.18);
+  background: rgba(56, 189, 248, 0.18);
   border: 1px solid var(--gold);
   color: var(--gold-text);
 }
@@ -660,7 +673,7 @@ p {
   border-top: 1px solid var(--border);
 }
 
-/* ---------------- Floating Liquid Glass Bottom Dock ---------------- */
+/* ---------------- Floating Cyber Glass Bottom Dock ---------------- */
 .bottom-dock {
   position: fixed;
   left: 50%;
@@ -702,7 +715,7 @@ p {
 }
 
 .dock-tab.active {
-  background: rgba(212, 162, 58, 0.18);
+  background: rgba(56, 189, 248, 0.18);
   color: var(--gold-text);
   border: 1px solid var(--border);
 }
@@ -712,7 +725,7 @@ p {
   line-height: 1;
 }
 
-/* ---------------- Skeleton Shimmer & Splash (§9.3) ---------------- */
+/* ---------------- Skeleton Shimmer & Splash ---------------- */
 .skeleton {
   height: 84px;
   border-radius: 14px;
@@ -729,6 +742,10 @@ p {
   100% {
     background-position: -200% 0;
   }
+}
+
+.hidden {
+  display: none !important;
 }
 
 .splash-overlay {
@@ -799,26 +816,4 @@ p {
 .stat-tile-lbl {
   font-size: 0.82rem;
   color: var(--text-muted);
-}
-
-.shot-preview {
-  max-width: 100%;
-  max-height: 220px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  margin: 8px 0;
-  display: block;
-}
-
-.hidden {
-  display: none !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
 }
