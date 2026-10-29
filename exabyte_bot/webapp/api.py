@@ -14,7 +14,7 @@ from aiogram.types import BufferedInputFile
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 from .. import packages as P
 from ..bot.messages import (
@@ -502,12 +502,18 @@ def create_webapp(
     async def api_admin_login(body: AdminLoginBody) -> dict[str, Any]:
         import hmac
 
-        expected_user = (await svc.db.get_setting("admin_web_user")) or settings.panel_user or "exabyte"
-        expected_pass = (
-            (await svc.db.get_setting("admin_web_pass"))
-            or settings.panel_pass.get_secret_value()
-            or "exabyte"
+        p_user = (
+            settings.panel_user.get_secret_value()
+            if isinstance(settings.panel_user, SecretStr)
+            else str(settings.panel_user)
         )
+        p_pass = (
+            settings.panel_pass.get_secret_value()
+            if isinstance(settings.panel_pass, SecretStr)
+            else str(settings.panel_pass)
+        )
+        expected_user = (await svc.db.get_setting("admin_web_user")) or p_user or "exabyte"
+        expected_pass = (await svc.db.get_setting("admin_web_pass")) or p_pass or "exabyte"
         u_ok = hmac.compare_digest(body.username.strip(), expected_user)
         p_ok = hmac.compare_digest(body.password, expected_pass)
         if not (u_ok and p_ok):

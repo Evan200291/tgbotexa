@@ -175,6 +175,13 @@ async def test_miniapp_customer_and_admin_web_flows(svc: Service, clock, tmp_pat
         assert shot_img_q.headers["content-type"] == "image/png"
         assert len(shot_img_q.content) > 0
 
+        # Standalone Admin Login endpoint test
+        login_fail = await client.post("/api/admin/login", json={"username": "wrong", "password": "bad"})
+        assert login_fail.status_code == 401
+
+        login_ok = await client.post("/api/admin/login", json={"username": "exabyte", "password": "exabyte"})
+        assert login_ok.status_code == 200 and "token" in login_ok.json()
+
         rj = await client.post(
             f"/api/admin/orders/{code}/reject",
             json={"reason": "Unpaid test"},
