@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Exabyte Digital Store Logo">
+  <defs>
+    <linearGradient id="exaBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2A1B1E"/>
+      <stop offset="55%" stop-color="#1A1012"/>
+      <stop offset="100%" stop-color="#120B0C"/>
+    </linearGradient>
+    <linearGradient id="exaGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F3D98B"/>
+      <stop offset="50%" stop-color="#D4A23A"/>
+      <stop offset="100%" stop-color="#9A6B12"/>
+    </linearGradient>
+    <linearGradient id="exaGlass" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F3D98B" stop-opacity="0.28"/>
+      <stop offset="40%" stop-color="#D4A23A" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#120B0C" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- Liquid glass dark lacquer tile -->
+  <rect x="6" y="6" width="244" height="244" rx="54" fill="url(#exaBg)" stroke="url(#exaGold)" stroke-width="4"/>
+  <!-- Top liquid specular reflection -->
+  <path d="M 32 14 H 224 A 42 42 0 0 1 246 52 V 86 Q 128 112 10 86 V 52 A 42 42 0 0 1 32 14 Z" fill="url(#exaGlass)"/>
+  <!-- Subtle inner pagoda hti crown silhouette (purely decorative) -->
+  <path d="M128 24 L134 36 L122 36 Z" fill="url(#exaGold)" opacity="0.35"/>
+  <!-- Exabyte geometric 'E' symbol (exact proportions from workspace exabyte-symbol) -->
+  <g fill="url(#exaGold)">
+    <!-- Left vertical pillar -->
+    <rect x="52" y="50" width="36" height="156" rx="3"/>
+    <!-- Top angled bar -->
+    <polygon points="101,50 204,50 179,86 101,86"/>
+    <!-- Middle angled bar -->
+    <polygon points="101,110 166,110 141,146 101,146"/>
+    <!-- Bottom angled bar -->
+    <polygon points="101,170 204,170 179,206 101,206"/>
+  </g>
+</svg>

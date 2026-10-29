@@ -10,8 +10,11 @@ Rules of thumb used throughout:
 from __future__ import annotations
 
 import asyncio
+import base64
+import contextlib
 import csv
 import io
+import json
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
@@ -130,6 +133,7 @@ class KeyView:
     expiry_ms: int
     enabled: bool
     status: str  # active | expired | disabled
+    sub_id: str = ""
 
     @property
     def unlimited(self) -> bool:
@@ -186,6 +190,8 @@ class Service:
         self.now = clock
         self._inbound: Inbound | None = None
         self._locks: defaultdict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
+        # Extra 3X-UI panels keyed by panels.id -> XUIClient (allows test transport injection)
+        self._extra_xui: dict[int, XUIClient] = {}
 
     # ----- startup / inbound
     async def startup(self) -> Inbound:
@@ -194,6 +200,67 @@ class Service:
         self._inbound = ib
         log.info("using inbound id=%s port=%s method=%s", ib.id, ib.port, ib.method)
         return ib
+
+    async def _get_extra_client(self, row: aiosqlite.Row) -> tuple[XUIClient, Inbound]:
+        pid = int(row["id"])
+        client = self._extra_xui.get(pid)
+        if client is None:
+            client = XUIClient(
+                row["base_url"],
+                row["username"],
+                row["password"],
+                verify_tls=bool(row["verify_tls"]),
+            )
+            self._extra_xui[pid] = client
+        ib = Inbound(
+            id=int(row["inbound_id"]),
+            remark=row["inbound_remark"],
+            port=int(row["port"]),
+            method=row["method"],
+            server_key=row["server_key"],
+        )
+        return client, ib
+
+    async def _replicate_extra_panels(
+        self,
+        op: str,
+        *,
+        tg_id: int = 0,
+        email: str = "",
+        password: str = "",
+        sub_id: str = "",
+        quota: int = 0,
+        expiry_ms: int = 0,
+        limit_ip: int = 1,
+        enable: bool = True,
+        comment: str = "",
+    ) -> None:
+        rows = await self.db.fetchall("SELECT * FROM panels WHERE enabled=1 ORDER BY id")
+        for r in rows:
+            try:
+                client, ib = await self._get_extra_client(r)
+                spec = ClientSpec(
+                    email=email,
+                    password=password,
+                    method=client_method_for(ib.method),
+                    total_bytes=quota,
+                    expiry_ms=expiry_ms,
+                    limit_ip=limit_ip,
+                    enable=enable,
+                    tg_id=tg_id,
+                    sub_id=sub_id,
+                    comment=comment,
+                )
+                if op == "add":
+                    await client.add_client(ib.id, spec)
+                elif op == "update":
+                    await client.update_client(ib.id, spec)
+                elif op == "delete":
+                    await client.delete_client(ib.id, email)
+                elif op == "reset":
+                    await client.reset_traffic(ib.id, email)
+            except Exception:
+                log.warning("extra panel id=%s failed op=%s", r["id"], op)
 
     @property
     def inbound(self) -> Inbound:
@@ -242,6 +309,7 @@ class Service:
             password=row["password"], link=self.link_for(row["password"], row["xui_email"]),
             plan_id=row["plan_id"], quota_bytes=row["quota_bytes"], used_bytes=row["used_bytes"],
             expiry_ms=row["expiry_ms"], enabled=bool(row["enabled"]), status=self._status(row),
+            sub_id=row["sub_id"],
         )
 
     async def _sub_row(self, tg_id: int) -> aiosqlite.Row | None:
@@ -250,6 +318,46 @@ class Service:
     async def get_key(self, tg_id: int) -> KeyView | None:
         row = await self._sub_row(tg_id)
         return self._view(row) if row else None
+
+    async def get_key_links(self, tg_id: int) -> list[dict[str, Any]]:
+        """Return ss:// links across the primary panel + all enabled extra panels."""
+        row = await self._sub_row(tg_id)
+        if not row:
+            return []
+        email, pw = row["xui_email"], row["password"]
+        links = [
+            {
+                "panel_id": 0,
+                "name": "Server 1 (Primary)",
+                "host": self.server_host,
+                "link": self.link_for(pw, email),
+            }
+        ]
+        extra = await self.db.fetchall("SELECT * FROM panels WHERE enabled=1 ORDER BY id")
+        for idx, p in enumerate(extra, start=2):
+            ib = Inbound(
+                id=int(p["inbound_id"]),
+                remark=p["inbound_remark"],
+                port=int(p["port"]),
+                method=p["method"],
+                server_key=p["server_key"],
+            )
+            links.append({
+                "panel_id": int(p["id"]),
+                "name": p["name"] or f"Server {idx}",
+                "host": p["server_host"],
+                "link": build_ss_link(ib, pw, p["server_host"], f"Exabyte-{p['name']}-{email}"),
+            })
+        return links
+
+    async def subscription_payload_by_sub_id(self, sub_id: str) -> str | None:
+        """Return base64-encoded newline-separated ss:// links for all active panels."""
+        row = await self.db.fetchone("SELECT * FROM subscriptions WHERE sub_id=?", (sub_id,))
+        if not row:
+            return None
+        links = await self.get_key_links(int(row["user_id"]))
+        raw = "\n".join(item["link"] for item in links)
+        return base64.b64encode(raw.encode("utf-8")).decode("ascii")
 
     def _spec(self, tg_id: int, email: str, password: str, sub_id: str, quota: int,
               expiry_ms: int, limit_ip: int, enable: bool = True, comment: str = "") -> ClientSpec:
@@ -284,12 +392,13 @@ class Service:
         if key:
             data.update(
                 kind=key.kind, status=key.status, plan_id=key.plan_id, link=key.link,
+                sub_id=key.sub_id, servers=await self.get_key_links(tg_id),
                 unlimited=key.unlimited, quota_bytes=key.quota_bytes, used_bytes=key.used_bytes,
                 expiry_at=iso(from_ms(key.expiry_ms)), days_left=days_left(key.expiry_ms, now),
-                quota_exhausted=key.quota_exhausted,
+                quota_exhausted=key.quota_exhausted, enabled=key.enabled,
             )
         else:
-            data.update(status="none")
+            data.update(status="none", servers=[])
         return data
 
     # ----- trial
@@ -307,6 +416,7 @@ class Service:
                 # Revoke the previous key first (any kind: an expired paid key is replaced too,
                 # because a user only ever holds one key). If the panel is down nothing changed.
                 await self.xui.delete_client(self.inbound.id, old["xui_email"])
+                await self._replicate_extra_panels("delete", email=old["xui_email"])
                 async with self.db.transaction() as tx:
                     await tx.execute("DELETE FROM subscriptions WHERE user_id=?", (tg_id,))
 
@@ -316,6 +426,10 @@ class Service:
             expiry = to_ms(now) + P.TRIAL_DAYS * MS_PER_DAY
             await self.xui.add_client(self.inbound.id, self._spec(
                 tg_id, email, password, sub_id, quota, expiry, limit_ip=1, comment="trial"))
+            await self._replicate_extra_panels(
+                "add", tg_id=tg_id, email=email, password=password, sub_id=sub_id,
+                quota=quota, expiry_ms=expiry, limit_ip=1, comment="trial",
+            )
             async with self.db.transaction() as tx:
                 await tx.execute(
                     "INSERT INTO subscriptions(user_id, kind, xui_email, password, sub_id, plan_id,"
@@ -345,6 +459,10 @@ class Service:
             await self.xui.add_client(ib.id, self._spec(
                 tg_id, email, password, sub_id, plan.quota_bytes, expiry, plan.devices,
                 comment=plan.id))
+            await self._replicate_extra_panels(
+                "add", tg_id=tg_id, email=email, password=password, sub_id=sub_id,
+                quota=plan.quota_bytes, expiry_ms=expiry, limit_ip=plan.devices, comment=plan.id,
+            )
             async with self.db.transaction() as tx:
                 await tx.execute(
                     "INSERT INTO subscriptions(user_id, kind, xui_email, password, sub_id, plan_id,"
@@ -361,9 +479,15 @@ class Service:
             await self.xui.update_client(ib.id, self._spec(
                 tg_id, sub["xui_email"], sub["password"], sub["sub_id"], plan.quota_bytes,
                 expiry, plan.devices, comment=plan.id))
+            await self._replicate_extra_panels(
+                "update", tg_id=tg_id, email=sub["xui_email"], password=sub["password"],
+                sub_id=sub["sub_id"], quota=plan.quota_bytes, expiry_ms=expiry,
+                limit_ip=plan.devices, comment=plan.id,
+            )
             if was_trial:
                 # Trial usage must not count against the paid plan.
                 await self.xui.reset_traffic(ib.id, sub["xui_email"])
+                await self._replicate_extra_panels("reset", email=sub["xui_email"])
             async with self.db.transaction() as tx:
                 await tx.execute(
                     "UPDATE subscriptions SET kind='paid', plan_id=?, quota_bytes=?, expiry_ms=?,"
@@ -446,12 +570,40 @@ class Service:
                 (file_unique_id, code))
             if dup:
                 raise DuplicateScreenshot()
+
+            # Capture pre-order subscription state so if Admin marks Unpaid we can roll back.
+            old_sub = await self._sub_row(tg_id)
+            snap: dict[str, Any] = (
+                {
+                    "had_sub": True,
+                    "kind": old_sub["kind"],
+                    "xui_email": old_sub["xui_email"],
+                    "password": old_sub["password"],
+                    "sub_id": old_sub["sub_id"],
+                    "plan_id": old_sub["plan_id"],
+                    "quota_bytes": int(old_sub["quota_bytes"]),
+                    "used_bytes": int(old_sub["used_bytes"]),
+                    "expiry_ms": int(old_sub["expiry_ms"]),
+                    "enabled": int(old_sub["enabled"]),
+                    "optimistic": False,
+                }
+                if old_sub is not None
+                else {"had_sub": False, "optimistic": False}
+            )
+            # Optimistically issue/extend the key right away so the customer gets instant access.
+            try:
+                await self._apply_plan(tg_id, order.plan)
+                snap["optimistic"] = True
+            except XUIError:
+                log.warning("optimistic key issue deferred for order %s (panel unavailable)", code)
+
             now = self._now_ms()
             try:
                 await self.db.execute(
                     "UPDATE orders SET screenshot_file_id=?, screenshot_unique_id=?,"
-                    " state='awaiting_review', submitted_at=?, updated_at=? WHERE code=?",
-                    (file_id, file_unique_id, now, now, code))
+                    " prev_snapshot=?, state='awaiting_review', submitted_at=?, updated_at=?"
+                    " WHERE code=?",
+                    (file_id, file_unique_id, json.dumps(snap), now, now, code))
             except aiosqlite.IntegrityError:
                 raise DuplicateScreenshot() from None
             order = await self._order(code)
@@ -459,9 +611,10 @@ class Service:
             return order
 
     async def approve_order(self, code: str, admin_id: int) -> ReviewResult:
-        order = await self._order(code)
-        if order is None:
+        order_row = await self.db.fetchone("SELECT * FROM orders WHERE code=?", (code,))
+        if order_row is None:
             raise OrderNotFound()
+        order = Order.from_row(order_row)
         async with self._lock(order.user_id):
             now = self._now_ms()
             # Claim the order atomically FIRST. Only the caller that flips the state provisions,
@@ -475,8 +628,33 @@ class Service:
                 if current.state == "approved":
                     return ReviewResult(current, await self.get_key(order.user_id), already=True)
                 raise OrderBadState()
+
+            snap = json.loads(order_row["prev_snapshot"] or "{}")
             try:
-                key = await self._apply_plan(order.user_id, order.plan)
+                sub = await self._sub_row(order.user_id)
+                if snap.get("optimistic") and sub is not None:
+                    # Key was already created/extended on screenshot upload: confirm on panel
+                    # without adding days a second time.
+                    await self.xui.update_client(
+                        self.inbound.id,
+                        self._spec(
+                            order.user_id, sub["xui_email"], sub["password"], sub["sub_id"],
+                            sub["quota_bytes"], sub["expiry_ms"], order.plan.devices,
+                            enable=True, comment=order.plan.id,
+                        ),
+                    )
+                    await self._replicate_extra_panels(
+                        "update", tg_id=order.user_id, email=sub["xui_email"],
+                        password=sub["password"], sub_id=sub["sub_id"],
+                        quota=sub["quota_bytes"], expiry_ms=sub["expiry_ms"],
+                        limit_ip=order.plan.devices, enable=True, comment=order.plan.id,
+                    )
+                    await self.db.execute(
+                        "UPDATE subscriptions SET enabled=1 WHERE user_id=?", (order.user_id,)
+                    )
+                    key = await self.get_key(order.user_id)
+                else:
+                    key = await self._apply_plan(order.user_id, order.plan)
             except XUIError:
                 # Undo the claim so the admin can simply tap Approve again later.
                 await self.db.execute(
@@ -490,20 +668,62 @@ class Service:
         return ReviewResult(final, key, already=False)
 
     async def reject_order(self, code: str, admin_id: int, reason: str | None = None) -> ReviewResult:
-        order = await self._order(code)
-        if order is None:
+        order_row = await self.db.fetchone("SELECT * FROM orders WHERE code=?", (code,))
+        if order_row is None:
             raise OrderNotFound()
-        now = self._now_ms()
-        n = await self.db.execute(
-            "UPDATE orders SET state='rejected', reviewed_by=?, reviewed_at=?, updated_at=?,"
-            " reason=? WHERE code=? AND state IN (?,?)",
-            (admin_id, now, now, reason, code, *OPEN_STATES))
-        current = await self._order(code)
-        assert current is not None
-        if not n:
-            if current.state == "rejected":
-                return ReviewResult(current, None, already=True)
-            raise OrderBadState()
+        order = Order.from_row(order_row)
+        async with self._lock(order.user_id):
+            now = self._now_ms()
+            n = await self.db.execute(
+                "UPDATE orders SET state='rejected', reviewed_by=?, reviewed_at=?, updated_at=?,"
+                " reason=? WHERE code=? AND state IN (?,?)",
+                (admin_id, now, now, reason, code, *OPEN_STATES))
+            current = await self._order(code)
+            assert current is not None
+            if not n:
+                if current.state == "rejected":
+                    return ReviewResult(current, None, already=True)
+                raise OrderBadState()
+
+            # Roll back optimistic key if one was issued when screenshot was uploaded.
+            snap = json.loads(order_row["prev_snapshot"] or "{}")
+            if snap.get("optimistic"):
+                cur_sub = await self._sub_row(order.user_id)
+                if cur_sub is not None:
+                    if not snap.get("had_sub"):
+                        with contextlib.suppress(XUIError):
+                            await self.xui.delete_client(self.inbound.id, cur_sub["xui_email"])
+                        await self._replicate_extra_panels("delete", email=cur_sub["xui_email"])
+                        await self.db.execute(
+                            "DELETE FROM subscriptions WHERE user_id=?", (order.user_id,)
+                        )
+                    else:
+                        with contextlib.suppress(XUIError):
+                            await self.xui.update_client(
+                                self.inbound.id,
+                                self._spec(
+                                    order.user_id, snap["xui_email"], snap["password"],
+                                    snap["sub_id"], snap["quota_bytes"], snap["expiry_ms"],
+                                    1, enable=bool(snap["enabled"]),
+                                    comment=snap["plan_id"] or "",
+                                ),
+                            )
+                        await self._replicate_extra_panels(
+                            "update", tg_id=order.user_id, email=snap["xui_email"],
+                            password=snap["password"], sub_id=snap["sub_id"],
+                            quota=snap["quota_bytes"], expiry_ms=snap["expiry_ms"],
+                            limit_ip=1, enable=bool(snap["enabled"]),
+                            comment=snap["plan_id"] or "",
+                        )
+                        await self.db.execute(
+                            "UPDATE subscriptions SET kind=?, plan_id=?, quota_bytes=?,"
+                            " used_bytes=?, expiry_ms=?, enabled=? WHERE user_id=?",
+                            (
+                                snap["kind"], snap["plan_id"], snap["quota_bytes"],
+                                snap["used_bytes"], snap["expiry_ms"], snap["enabled"],
+                                order.user_id,
+                            ),
+                        )
         await self.db.audit(admin_id, "order_reject", code, {"reason": reason}, now)
         return ReviewResult(current, None, already=False)
 
@@ -541,6 +761,11 @@ class Service:
             await self.xui.update_client(self.inbound.id, self._spec(
                 tg_id, sub["xui_email"], password, sub["sub_id"], sub["quota_bytes"],
                 sub["expiry_ms"], P.PAID_DEVICES, comment=sub["plan_id"] or ""))
+            await self._replicate_extra_panels(
+                "update", tg_id=tg_id, email=sub["xui_email"], password=password,
+                sub_id=sub["sub_id"], quota=sub["quota_bytes"], expiry_ms=sub["expiry_ms"],
+                limit_ip=P.PAID_DEVICES, comment=sub["plan_id"] or "",
+            )
             async with self.db.transaction() as tx:
                 await tx.execute(
                     "UPDATE subscriptions SET password=?, last_regenerated_at=? WHERE user_id=?",
@@ -552,32 +777,52 @@ class Service:
 
     # ----- background sync
     async def sync_usage(self) -> list[KeyView]:
-        """Pull traffic for all clients in one call, store it, and disable expired clients.
+        """Pull traffic for all clients across panels, store it, and disable expired clients.
 
         Returns the refreshed keys so the jobs module can decide on notifications.
         """
         ib = await self.xui.get_inbound(self.inbound.id)
         stats = traffic_from_stats(ib.client_stats)
+
+        extra_stats: list[dict[str, Any]] = []
+        for p in await self.db.fetchall("SELECT * FROM panels WHERE enabled=1 ORDER BY id"):
+            with contextlib.suppress(Exception):
+                c, eib = await self._get_extra_client(p)
+                remote_ib = await c.get_inbound(eib.id)
+                extra_stats.append(traffic_from_stats(remote_ib.client_stats))
+
         now_ms = self._now_ms()
         refreshed: list[KeyView] = []
         for sub in await self.db.fetchall("SELECT * FROM subscriptions"):
-            tr = stats.get(sub["xui_email"])
-            if tr is not None:
+            email = sub["xui_email"]
+            tr = stats.get(email)
+            up_total = tr.up if tr else 0
+            down_total = tr.down if tr else 0
+            for es in extra_stats:
+                if etr := es.get(email):
+                    up_total += etr.up
+                    down_total += etr.down
+            if tr is not None or extra_stats:
                 async with self.db.transaction() as tx:
                     await tx.execute("UPDATE subscriptions SET used_bytes=? WHERE id=?",
-                                     (tr.used, sub["id"]))
+                                     (up_total + down_total, sub["id"]))
                     await tx.execute(
                         "INSERT INTO usage_snapshots(user_id, xui_email, up_bytes, down_bytes,"
                         " taken_at) VALUES (?,?,?,?,?)",
-                        (sub["user_id"], sub["xui_email"], tr.up, tr.down, now_ms))
+                        (sub["user_id"], email, up_total, down_total, now_ms))
             row = await self._sub_row(sub["user_id"])
             assert row is not None
             # Belt and braces: make sure an expired client is really disabled on the panel.
             if row["expiry_ms"] <= now_ms and tr is not None and tr.enable:
                 await self.xui.update_client(ib.id, self._spec(
-                    row["user_id"], row["xui_email"], row["password"], row["sub_id"],
+                    row["user_id"], email, row["password"], row["sub_id"],
                     row["quota_bytes"], row["expiry_ms"], 1, enable=False,
                     comment=row["plan_id"] or ""))
+                await self._replicate_extra_panels(
+                    "update", tg_id=row["user_id"], email=email, password=row["password"],
+                    sub_id=row["sub_id"], quota=row["quota_bytes"], expiry_ms=row["expiry_ms"],
+                    limit_ip=1, enable=False, comment=row["plan_id"] or "",
+                )
             refreshed.append(self._view(row))
         return refreshed
 
@@ -701,6 +946,11 @@ class Service:
                     new_quota, new_exp, 1, enable=True, comment=sub["plan_id"] or "",
                 ),
             )
+            await self._replicate_extra_panels(
+                "update", tg_id=tg_id, email=sub["xui_email"], password=sub["password"],
+                sub_id=sub["sub_id"], quota=new_quota, expiry_ms=new_exp,
+                limit_ip=1, enable=True, comment=sub["plan_id"] or "",
+            )
             async with self.db.transaction() as tx:
                 await tx.execute(
                     "UPDATE subscriptions SET expiry_ms=?, quota_bytes=?, enabled=1,"
@@ -715,15 +965,148 @@ class Service:
         assert key is not None
         return key
 
+    async def admin_set_key_enabled(self, admin_id: int, tg_id: int, enabled: bool) -> KeyView:
+        async with self._lock(tg_id):
+            sub = await self._sub_row(tg_id)
+            if sub is None:
+                raise NoKey()
+            await self.xui.update_client(
+                self.inbound.id,
+                self._spec(
+                    tg_id, sub["xui_email"], sub["password"], sub["sub_id"],
+                    int(sub["quota_bytes"]), int(sub["expiry_ms"]), 1,
+                    enable=enabled, comment=sub["plan_id"] or "",
+                ),
+            )
+            await self._replicate_extra_panels(
+                "update", tg_id=tg_id, email=sub["xui_email"], password=sub["password"],
+                sub_id=sub["sub_id"], quota=int(sub["quota_bytes"]),
+                expiry_ms=int(sub["expiry_ms"]), limit_ip=1, enable=enabled,
+                comment=sub["plan_id"] or "",
+            )
+            await self.db.execute(
+                "UPDATE subscriptions SET enabled=? WHERE user_id=?", (int(enabled), tg_id)
+            )
+        await self.db.audit(
+            admin_id, "suspend_key" if not enabled else "resume_key",
+            str(tg_id), None, self._now_ms(),
+        )
+        key = await self.get_key(tg_id)
+        assert key is not None
+        return key
+
     async def admin_revoke_key(self, admin_id: int, tg_id: int) -> None:
         async with self._lock(tg_id):
             sub = await self._sub_row(tg_id)
             if sub is None:
                 raise NoKey()
             await self.xui.delete_client(self.inbound.id, sub["xui_email"])
+            await self._replicate_extra_panels("delete", email=sub["xui_email"])
             async with self.db.transaction() as tx:
                 await tx.execute("DELETE FROM subscriptions WHERE user_id=?", (tg_id,))
         await self.db.audit(admin_id, "admin_revoke_key", str(tg_id), None, self._now_ms())
+
+    # ----- multi-panel 3X-UI management
+    async def list_panels(self) -> list[dict[str, Any]]:
+        ib = self.inbound
+        out: list[dict[str, Any]] = [
+            {
+                "id": 0,
+                "name": "Server 1 (Primary)",
+                "server_host": self.server_host,
+                "inbound_remark": self.inbound_remark,
+                "inbound_id": ib.id,
+                "port": ib.port,
+                "method": ib.method,
+                "enabled": True,
+                "is_primary": True,
+            }
+        ]
+        for r in await self.db.fetchall("SELECT * FROM panels ORDER BY id"):
+            out.append({
+                "id": int(r["id"]),
+                "name": r["name"],
+                "server_host": r["server_host"],
+                "inbound_remark": r["inbound_remark"],
+                "inbound_id": int(r["inbound_id"]),
+                "port": int(r["port"]),
+                "method": r["method"],
+                "enabled": bool(r["enabled"]),
+                "is_primary": False,
+            })
+        return out
+
+    async def add_panel(
+        self,
+        admin_id: int,
+        *,
+        name: str,
+        base_url: str,
+        username: str,
+        password: str,
+        server_host: str,
+        inbound_remark: str = "exabytetgbot",
+        verify_tls: bool = True,
+        client_override: XUIClient | None = None,
+    ) -> dict[str, Any]:
+        client = client_override or XUIClient(
+            base_url, username, password, verify_tls=verify_tls
+        )
+        ib = await client.find_inbound(inbound_remark)
+        ib.validate()
+        now_ms = self._now_ms()
+        async with self.db.transaction() as tx:
+            cur = await tx.execute(
+                "INSERT INTO panels(name, base_url, username, password, verify_tls,"
+                " inbound_remark, server_host, inbound_id, port, method, server_key,"
+                " enabled, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?)",
+                (
+                    name, base_url, username, password, int(verify_tls),
+                    inbound_remark, server_host, ib.id, ib.port, ib.method,
+                    ib.server_key, now_ms,
+                ),
+            )
+            pid = int(cur.lastrowid or 0)
+        self._extra_xui[pid] = client
+
+        # Sync all existing active keys onto this new panel so key combinations work right away.
+        for sub in await self.db.fetchall("SELECT * FROM subscriptions"):
+            with contextlib.suppress(Exception):
+                await client.add_client(
+                    ib.id,
+                    ClientSpec(
+                        email=sub["xui_email"],
+                        password=sub["password"],
+                        method=client_method_for(ib.method),
+                        total_bytes=int(sub["quota_bytes"]),
+                        expiry_ms=int(sub["expiry_ms"]),
+                        limit_ip=1,
+                        enable=bool(sub["enabled"]),
+                        tg_id=int(sub["user_id"]),
+                        sub_id=sub["sub_id"],
+                        comment=sub["plan_id"] or "",
+                    ),
+                )
+        await self.db.audit(
+            admin_id, "add_panel", str(pid),
+            {"name": name, "server_host": server_host, "port": ib.port}, now_ms,
+        )
+        return (await self.list_panels())[-1]
+
+    async def toggle_panel(self, admin_id: int, panel_id: int, enabled: bool) -> None:
+        await self.db.execute(
+            "UPDATE panels SET enabled=? WHERE id=?", (int(enabled), panel_id)
+        )
+        await self.db.audit(
+            admin_id, "toggle_panel", str(panel_id), {"enabled": enabled}, self._now_ms()
+        )
+
+    async def delete_panel(self, admin_id: int, panel_id: int) -> None:
+        if client := self._extra_xui.pop(panel_id, None):
+            with contextlib.suppress(Exception):
+                await client.aclose()
+        await self.db.execute("DELETE FROM panels WHERE id=?", (panel_id,))
+        await self.db.audit(admin_id, "delete_panel", str(panel_id), None, self._now_ms())
 
     async def admin_set_banned(self, admin_id: int, tg_id: int, banned: bool) -> None:
         await self.db.execute(

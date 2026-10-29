@@ -17,6 +17,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
+    WebAppInfo,
 )
 
 from ..config import Settings
@@ -24,7 +25,7 @@ from ..service import KeyView, Service, ServiceError
 from ..strings import t
 from ..util import fmt_bytes, fmt_date, fmt_mmk
 from ..xui import PanelUnavailable
-from .messages import admin_order_review_kb, branded
+from .messages import admin_order_review_kb, branded, status_label
 from .payments import CODE_RE
 from .user import send_key_card
 
@@ -41,6 +42,7 @@ class AdminStates(StatesGroup):
     reject_reason = State()
     find_user = State()
     broadcast_text = State()
+    msg_user = State()
 
 
 async def queue_approval_retry(svc: Service, code: str, admin_id: int) -> None:
@@ -50,25 +52,36 @@ async def queue_approval_retry(svc: Service, code: str, admin_id: int) -> None:
     await svc.db.set_setting("retry_approvals", ",".join(sorted(items)))
 
 
-async def _admin_menu_kb(svc: Service) -> InlineKeyboardMarkup:
+async def _admin_menu_kb(svc: Service, settings: Settings | None = None) -> InlineKeyboardMarkup:
     pend = len(await svc.pending_orders())
+    panels = len(await svc.list_panels())
     maint = "ON" if await svc.is_maintenance() else "OFF"
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=t("btn_adm_pending", n=pend), callback_data="adm:pend")],
-            [
-                InlineKeyboardButton(text=t("btn_adm_stats"), callback_data="adm:stats"),
-                InlineKeyboardButton(text=t("btn_adm_find"), callback_data="adm:find"),
-            ],
-            [
-                InlineKeyboardButton(text=t("btn_adm_broadcast"), callback_data="adm:bcast"),
-                InlineKeyboardButton(
-                    text=t("btn_adm_maint", state=maint), callback_data="adm:maint"
-                ),
-            ],
-            [InlineKeyboardButton(text=t("btn_adm_csv"), callback_data="adm:csv")],
-        ]
-    )
+    rows: list[list[InlineKeyboardButton]] = []
+    if settings and settings.bot_domain:
+        rows.append([
+            InlineKeyboardButton(
+                text=t("btn_adm_web"),
+                web_app=WebAppInfo(url=f"https://{settings.bot_domain}/?admin=1"),
+            )
+        ])
+    rows.extend([
+        [InlineKeyboardButton(text=t("btn_adm_pending", n=pend), callback_data="adm:pend")],
+        [
+            InlineKeyboardButton(text=t("btn_adm_stats"), callback_data="adm:stats"),
+            InlineKeyboardButton(text=t("btn_adm_find"), callback_data="adm:find"),
+        ],
+        [
+            InlineKeyboardButton(text=t("btn_adm_panels", n=panels), callback_data="adm:panels"),
+            InlineKeyboardButton(text=t("btn_adm_broadcast"), callback_data="adm:bcast"),
+        ],
+        [
+            InlineKeyboardButton(
+                text=t("btn_adm_maint", state=maint), callback_data="adm:maint"
+            ),
+            InlineKeyboardButton(text=t("btn_adm_csv"), callback_data="adm:csv"),
+        ],
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _back_admin_kb() -> InlineKeyboardMarkup:
@@ -77,16 +90,22 @@ def _back_admin_kb() -> InlineKeyboardMarkup:
     )
 
 
-def _user_manage_kb(uid: int, banned: bool) -> InlineKeyboardMarkup:
+def _user_manage_kb(uid: int, banned: bool, *, key_enabled: bool = True) -> InlineKeyboardMarkup:
     ban_btn = (
         InlineKeyboardButton(text="🔓 Unban", callback_data=f"adm:uact:unban:{uid}")
         if banned
         else InlineKeyboardButton(text="🚫 Ban", callback_data=f"adm:uact:ban:{uid}")
     )
+    suspend_btn = (
+        InlineKeyboardButton(text=t("btn_suspend_key"), callback_data=f"adm:uact:suspend:{uid}")
+        if key_enabled
+        else InlineKeyboardButton(text=t("btn_resume_key"), callback_data=f"adm:uact:resume:{uid}")
+    )
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="+7 ရက်", callback_data=f"adm:uact:add7d:{uid}"),
+                InlineKeyboardButton(text="-7 ရက်", callback_data=f"adm:uact:sub7d:{uid}"),
                 InlineKeyboardButton(text="+30 ရက်", callback_data=f"adm:uact:add30d:{uid}"),
                 InlineKeyboardButton(text="+5 GB", callback_data=f"adm:uact:add5g:{uid}"),
             ],
@@ -96,7 +115,11 @@ def _user_manage_kb(uid: int, banned: bool) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="Grant 6လ", callback_data=f"adm:uact:grant:{uid}:vpn_6m"),
             ],
             [
+                suspend_btn,
                 InlineKeyboardButton(text="🗑️ Key ဖျက်မည်", callback_data=f"adm:uact:revoke:{uid}"),
+            ],
+            [
+                InlineKeyboardButton(text=t("btn_msg_user"), callback_data=f"adm:msg:{uid}"),
                 ban_btn,
             ],
             [InlineKeyboardButton(text=t("back"), callback_data="adm:menu")],
@@ -132,15 +155,19 @@ def build_admin_router() -> Router:
     r.callback_query.filter(AdminOnly())
 
     @r.message(Command("admin"))
-    async def cmd_admin(msg: Message, svc: Service, state: FSMContext) -> None:
+    async def cmd_admin(
+        msg: Message, svc: Service, settings: Settings, state: FSMContext
+    ) -> None:
         await state.clear()
         await msg.answer(
-            branded(t("admin_menu")), parse_mode="HTML", reply_markup=await _admin_menu_kb(svc)
+            branded(t("admin_menu")),
+            parse_mode="HTML",
+            reply_markup=await _admin_menu_kb(svc, settings),
         )
 
     @r.callback_query(F.data == "adm:menu")
     async def cb_admin_menu(
-        cb: CallbackQuery, svc: Service, state: FSMContext, bot: Bot
+        cb: CallbackQuery, svc: Service, settings: Settings, state: FSMContext, bot: Bot
     ) -> None:
         await state.clear()
         await cb.answer()
@@ -149,7 +176,7 @@ def build_admin_router() -> Router:
             chat_id,
             branded(t("admin_menu")),
             parse_mode="HTML",
-            reply_markup=await _admin_menu_kb(svc),
+            reply_markup=await _admin_menu_kb(svc, settings),
         )
 
     @r.callback_query(F.data == "adm:pend")
@@ -163,6 +190,7 @@ def build_admin_router() -> Router:
             )
             return
         for o in orders:
+            kv = await svc.get_key(o.user_id)
             caption = branded(
                 t(
                     "adm_new_order_caption",
@@ -170,8 +198,14 @@ def build_admin_router() -> Router:
                     user_id=o.user_id,
                     username="-",
                     plan_name=o.plan.name,
+                    days=o.plan.days,
                     amount=o.amount_text,
+                    key_email=kv.email if kv else "-",
+                    key_status=status_label(kv.status) if kv else "-",
                 )
+            )
+            kb = admin_order_review_kb(
+                o.code, o.user_id, key_enabled=kv.enabled if kv else True
             )
             if o.screenshot_file_id:
                 await bot.send_photo(
@@ -179,14 +213,14 @@ def build_admin_router() -> Router:
                     photo=o.screenshot_file_id,
                     caption=caption,
                     parse_mode="HTML",
-                    reply_markup=admin_order_review_kb(o.code),
+                    reply_markup=kb,
                 )
             else:
                 await bot.send_message(
                     chat_id,
                     caption,
                     parse_mode="HTML",
-                    reply_markup=admin_order_review_kb(o.code),
+                    reply_markup=kb,
                 )
 
     @r.callback_query(F.data.startswith("adm:ap:"))
@@ -304,10 +338,92 @@ def build_admin_router() -> Router:
                 branded(t("adm_user_not_found")), parse_mode="HTML", reply_markup=_back_admin_kb()
             )
             return
+        kv = info["key"]
         await msg.answer(
             _format_user_card(info),
             parse_mode="HTML",
-            reply_markup=_user_manage_kb(info["user_id"], info["banned"]),
+            reply_markup=_user_manage_kb(
+                info["user_id"], info["banned"], key_enabled=kv.enabled if kv else True
+            ),
+        )
+
+    @r.callback_query(F.data.startswith("adm:editkey:"))
+    async def cb_edit_key_card(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
+        await cb.answer()
+        uid_str = (cb.data or "").split(":", 2)[2]
+        info = await svc.find_user(uid_str)
+        chat_id = cb.message.chat.id if cb.message else cb.from_user.id
+        if not info:
+            await bot.send_message(
+                chat_id, branded(t("adm_user_not_found")), parse_mode="HTML", reply_markup=_back_admin_kb()
+            )
+            return
+        kv = info["key"]
+        await bot.send_message(
+            chat_id,
+            _format_user_card(info),
+            parse_mode="HTML",
+            reply_markup=_user_manage_kb(
+                info["user_id"], info["banned"], key_enabled=kv.enabled if kv else True
+            ),
+        )
+
+    @r.callback_query(F.data.startswith("adm:msg:"))
+    async def cb_msg_user_prompt(
+        cb: CallbackQuery, state: FSMContext, bot: Bot
+    ) -> None:
+        uid_str = (cb.data or "").split(":", 2)[2]
+        if not uid_str.isdigit():
+            await cb.answer()
+            return
+        await cb.answer()
+        await state.set_state(AdminStates.msg_user)
+        await state.update_data(target_uid=int(uid_str))
+        chat_id = cb.message.chat.id if cb.message else cb.from_user.id
+        await bot.send_message(
+            chat_id,
+            branded(t("adm_ask_msg_user", user_id=uid_str)),
+            parse_mode="HTML",
+            reply_markup=_back_admin_kb(),
+        )
+
+    @r.message(StateFilter(AdminStates.msg_user))
+    async def on_msg_user_send(
+        msg: Message, svc: Service, state: FSMContext, bot: Bot
+    ) -> None:
+        data = await state.get_data()
+        target_uid = int(data.get("target_uid", 0))
+        await state.clear()
+        text = (msg.text or "").strip()
+        if not target_uid or not text:
+            return
+        try:
+            await bot.send_message(
+                target_uid,
+                branded(t("adm_msg_from_admin", text=escape(text))),
+                parse_mode="HTML",
+            )
+        except TelegramForbiddenError:
+            await svc.mark_blocked(target_uid)
+        await msg.answer(
+            branded(t("adm_action_done")), parse_mode="HTML", reply_markup=_back_admin_kb()
+        )
+
+    @r.callback_query(F.data == "adm:panels")
+    async def cb_panels_list(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
+        await cb.answer()
+        panels = await svc.list_panels()
+        lines = ["🖧 <b>3X-UI ဆာဗာများ (Key Combinations)</b>", ""]
+        for p in panels:
+            st = "🟢 Active" if p["enabled"] else "🔴 Disabled"
+            role = " (Primary)" if p["is_primary"] else ""
+            lines.append(
+                f"• <b>{escape(p['name'])}{role}</b> — <code>{escape(p['server_host'])}:{p['port']}</code> "
+                f"({escape(p['method'])}) [{st}]"
+            )
+        chat_id = cb.message.chat.id if cb.message else cb.from_user.id
+        await bot.send_message(
+            chat_id, branded("\n".join(lines)), parse_mode="HTML", reply_markup=_back_admin_kb()
         )
 
     @r.callback_query(F.data.startswith("adm:uact:"))
@@ -322,14 +438,32 @@ def build_admin_router() -> Router:
         try:
             if action == "add7d":
                 await svc.admin_adjust_key(admin_id, uid, add_days=7)
+            elif action == "sub7d":
+                await svc.admin_adjust_key(admin_id, uid, add_days=-7)
             elif action == "add30d":
                 await svc.admin_adjust_key(admin_id, uid, add_days=30)
             elif action == "add5g":
                 await svc.admin_adjust_key(admin_id, uid, add_gb=5)
+            elif action == "suspend":
+                await svc.admin_set_key_enabled(admin_id, uid, False)
+                try:
+                    await bot.send_message(
+                        uid, branded(t("key_suspended_notify")), parse_mode="HTML"
+                    )
+                except TelegramForbiddenError:
+                    await svc.mark_blocked(uid)
+            elif action == "resume":
+                await svc.admin_set_key_enabled(admin_id, uid, True)
+                try:
+                    await bot.send_message(
+                        uid, branded(t("key_resumed_notify")), parse_mode="HTML"
+                    )
+                except TelegramForbiddenError:
+                    await svc.mark_blocked(uid)
             elif action == "grant" and len(parts) == 5:
                 kv = await svc.grant_plan(admin_id, uid, parts[4])
                 try:
-                    await send_key_card(bot, uid, kv, svc.now(), intro=t("order_approved"))
+                    await send_key_card(bot, uid, kv, svc.now(), intro=t("order_approved"), svc=svc)
                 except TelegramForbiddenError:
                     await svc.mark_blocked(uid)
             elif action == "revoke":
@@ -349,11 +483,14 @@ def build_admin_router() -> Router:
         await cb.answer(t("adm_action_done"))
         info = await svc.find_user(str(uid))
         if info:
+            kv = info["key"]
             await bot.send_message(
                 chat_id,
                 _format_user_card(info),
                 parse_mode="HTML",
-                reply_markup=_user_manage_kb(uid, info["banned"]),
+                reply_markup=_user_manage_kb(
+                    uid, info["banned"], key_enabled=kv.enabled if kv else True
+                ),
             )
 
     @r.callback_query(F.data == "adm:maint")

@@ -35,7 +35,14 @@ def status_label(status: str) -> str:
     return t(key) if key in ("status_active", "status_expired", "status_disabled") else t("status_none")
 
 
-def format_key_message(kv: KeyView, now: datetime, *, intro: str | None = None) -> str:
+def format_key_message(
+    kv: KeyView,
+    now: datetime,
+    *,
+    intro: str | None = None,
+    extra_servers: list[dict[str, str]] | None = None,
+    sub_url: str | None = None,
+) -> str:
     body = t(
         "key_card",
         kind=t("kind_paid" if kv.kind == "paid" else "kind_trial"),
@@ -44,6 +51,14 @@ def format_key_message(kv: KeyView, now: datetime, *, intro: str | None = None) 
         days_left=days_left(kv.expiry_ms, now),
         link=escape(kv.link),
     )
+    if extra_servers and len(extra_servers) > 1:
+        srv_lines = "\n".join(
+            f"• <b>{escape(s['name'])}</b>:\n<code>{escape(s['link'])}</code>"
+            for s in extra_servers[1:]
+        )
+        body += "\n" + t("extra_servers_section", servers=srv_lines)
+    if sub_url:
+        body += t("sub_link_section", sub_url=escape(sub_url))
     if intro:
         body = f"{intro}\n\n{body}"
     return branded(body)
@@ -202,12 +217,28 @@ def support_kb(settings: Settings) -> InlineKeyboardMarkup:
     )
 
 
-def admin_order_review_kb(code: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text=t("btn_approve"), callback_data=f"adm:ap:{code}"),
-                InlineKeyboardButton(text=t("btn_reject"), callback_data=f"adm:rj:{code}"),
-            ]
+def admin_order_review_kb(code: str, user_id: int = 0, *, key_enabled: bool = True) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(text=t("btn_approve"), callback_data=f"adm:ap:{code}"),
+            InlineKeyboardButton(text=t("btn_reject"), callback_data=f"adm:rj:{code}"),
         ]
-    )
+    ]
+    if user_id:
+        toggle_btn = (
+            InlineKeyboardButton(
+                text=t("btn_suspend_key"), callback_data=f"adm:uact:suspend:{user_id}"
+            )
+            if key_enabled
+            else InlineKeyboardButton(
+                text=t("btn_resume_key"), callback_data=f"adm:uact:resume:{user_id}"
+            )
+        )
+        rows.append([
+            toggle_btn,
+            InlineKeyboardButton(text=t("btn_edit_key"), callback_data=f"adm:editkey:{user_id}"),
+        ])
+        rows.append([
+            InlineKeyboardButton(text=t("btn_msg_user"), callback_data=f"adm:msg:{user_id}"),
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)

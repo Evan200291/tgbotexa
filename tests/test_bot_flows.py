@@ -235,17 +235,32 @@ async def test_full_payment_and_admin_approval_flow(svc: Service, tmp_path):
     await send_text(USER, "here is text")
     assert "Screenshot ပုံ" in session.last_text(USER)
 
-    # Upload screenshot -> user gets confirmation, admin gets photo + Approve/Reject
+    # Upload screenshot -> user IMMEDIATELY receives their VPN key + QR, and admin gets photo + buttons
     await send_photo(USER, file_id="shot-fid", unique_id="shot-uid-1")
-    assert order.code in session.last_text(USER)
+    instant_msg = session.sent_to(USER)[-1]
+    assert isinstance(instant_msg, SendPhoto)
+    assert "ss://" in (instant_msg.caption or "") and order.code in (instant_msg.caption or "")
     admin_msg = session.sent_to(ADMIN)[-1]
     assert isinstance(admin_msg, SendPhoto) and order.code in (admin_msg.caption or "")
+
+    # Admin can suspend and resume the key directly from the order card
+    await tap(ADMIN, f"adm:uact:suspend:{USER}")
+    assert (await svc.get_key(USER)).status == "disabled"
+    await tap(ADMIN, f"adm:uact:resume:{USER}")
+    assert (await svc.get_key(USER)).status == "active"
+
+    # Admin can open the Edit Key card and send a direct message to the user
+    await tap(ADMIN, f"adm:editkey:{USER}")
+    assert str(USER) in session.last_text(ADMIN)
+    await tap(ADMIN, f"adm:msg:{USER}")
+    await send_text(ADMIN, "မင်္ဂလာပါ သင့်အော်ဒါ စစ်ဆေးပြီးပါပြီ")
+    assert "မင်္ဂလာပါ သင့်အော်ဒါ စစ်ဆေးပြီးပါပြီ" in session.last_text(USER)
 
     # Non-admin trying to forge approve callback is blocked by AdminOnly filter
     await tap(USER, f"adm:ap:{order.code}")
     assert (await svc.get_order(order.code)).state == "awaiting_review"
 
-    # Admin approves -> user gets paid key + QR
+    # Admin taps Paid (Approve) -> order is marked approved
     await tap(ADMIN, f"adm:ap:{order.code}")
     assert (await svc.get_order(order.code)).state == "approved"
     user_last = session.sent_to(USER)[-1]
@@ -265,11 +280,13 @@ async def test_reject_order_with_reason_and_panel_down_retry(svc: Service, tmp_p
     await tap(USER, "plan:vpn_1m")
     o1 = await svc.open_order(USER)
     await send_photo(USER, file_id="f1", unique_id="u1")
+    assert await svc.get_key(USER) is not None  # optimistic key issued immediately
 
-    # Admin rejects with a custom reason
+    # Admin rejects (Unpaid) with a custom reason -> optimistic key is rolled back
     await tap(ADMIN, f"adm:rj:{o1.code}")
     await send_text(ADMIN, "ငွေပမာဏ မမှန်ပါ")
     assert "ငွေပမာဏ မမှန်ပါ" in session.last_text(USER)
+    assert await svc.get_key(USER) is None
 
     # New order -> panel goes down when admin taps Approve -> queued and auto-retried by jobs
     await tap(USER, "plan:vpn_1m")

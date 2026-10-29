@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="my" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Exabyte Digital Store</title>
+  <link rel="icon" type="image/svg+xml" href="/static/brand/favicon.svg">
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <script src="https://telegram.org/js/telegram-web-app.js" async></script>
+</head>
+<body>
+  <!-- Short branded splash screen (< 1s) -->
+  <div id="splash" class="splash-overlay" role="status" aria-label="Loading Exabyte Digital Store">
+    <img src="/static/brand/logo.svg" alt="Exabyte" width="76" height="76" class="brand-logo">
+    <div class="brand-title">Exabyte Digital Store</div>
+    <div class="brand-tagline">လုံခြုံ မြန်ဆန် စိတ်ချရသော ဒစ်ဂျစ်တယ်ဆိုင်</div>
+  </div>
+
+  <!-- Toast notification banner -->
+  <div id="toast" class="toast hidden" role="alert"></div>
+
+  <main class="app-shell">
+    <!-- Hero Header with Exabyte Logo & Decorative Pagoda Skyline -->
+    <header class="hero-header">
+      <svg class="hero-pagoda-bg" viewBox="0 0 200 100" aria-hidden="true">
+        <path fill="currentColor" d="M140 8 L143 22 L149 38 L158 58 L174 78 L195 92 L195 100 L65 100 L65 92 L92 82 L104 66 L112 46 L117 28 L120 14 L122 28 L127 46 L133 38 L137 22 Z"/>
+        <circle cx="140" cy="6" r="3" fill="currentColor"/>
+      </svg>
+      <div class="hero-top">
+        <div class="brand-lockup">
+          <img src="/static/brand/logo.svg" alt="Exabyte Logo" class="brand-logo">
+          <div>
+            <div class="brand-title">Exabyte Digital Store</div>
+            <div id="hdr-tagline" class="brand-tagline">လုံခြုံ မြန်ဆန် စိတ်ချရသော ဒစ်ဂျစ်တယ်ဆိုင်</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button id="dev-role-btn" class="theme-btn hidden" type="button" title="Switch Customer/Admin Preview">👑</button>
+          <button id="theme-toggle" class="theme-btn" type="button" aria-label="Theme ပြောင်းရန်">🌙</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Skeleton loader shown while bootstrap API loads -->
+    <section id="loading-view">
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+    </section>
+
+    <!-- TAB 1: HOME DASHBOARD -->
+    <section id="view-home" class="tab-view hidden">
+      <div class="card">
+        <svg class="card-ornament" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="none" stroke="currentColor" stroke-width="1.6" d="M3 3h18v18M9 3l12 12M15 3l6 6"/>
+        </svg>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          <h2 style="margin:0;font-size:1.1rem;">သင့် VPN အခြေအနေ</h2>
+          <span id="home-status-badge" class="badge badge-none">Key မရှိသေးပါ</span>
+        </div>
+
+        <div class="ring-wrap">
+          <div class="ring-center-label">
+            <svg class="ring-svg" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ring-track" cx="60" cy="60" r="48"></circle>
+              <circle id="home-ring-arc" class="ring-progress" cx="60" cy="60" r="48" stroke-dasharray="301.6" stroke-dashoffset="301.6"></circle>
+            </svg>
+            <div id="home-ring-val" class="ring-value">—</div>
+            <div id="home-ring-sub" class="ring-sub">Data</div>
+          </div>
+          <div class="ring-meta">
+            <div class="stat-row">
+              <span class="stat-label">အမျိုးအစား</span>
+              <span id="home-kind" class="stat-val">—</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">လက်ကျန်ရက်</span>
+              <span id="home-days" class="stat-val">0 ရက်</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">ကုန်ဆုံးရက်</span>
+              <span id="home-expiry" class="stat-val">—</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">ဆာဗာအရေအတွက်</span>
+              <span id="home-servers-cnt" class="stat-val">1 လုံး</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="lotus-divider" aria-hidden="true">❖</div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" type="button" data-go-tab="key">🔑 ကျွန်ုပ်၏ Key ကြည့်မည်</button>
+          <button class="btn btn-secondary" type="button" data-go-tab="plans">💳 Plan ဝယ်မည်</button>
+        </div>
+      </div>
+
+      <!-- Free Trial Card -->
+      <div class="card">
+        <svg class="card-ornament" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="none" stroke="currentColor" stroke-width="1.6" d="M3 3h18v18M9 3l12 12"/>
+        </svg>
+        <h3 style="font-size:1.05rem;">⏳ အခမဲ့ စမ်းသပ် Key (5 GB / 7 ရက်)</h3>
+        <p id="trial-desc" style="color:var(--text-muted);font-size:0.94rem;">
+          မြန်နှုန်းမြင့် Shadowsocks VPN ကို 5 GB (7 ရက်) အခမဲ့ စမ်းသပ်အသုံးပြုနိုင်ပါသည်။
+        </p>
+        <button id="btn-claim-trial" class="btn btn-primary" type="button">⏳ အခမဲ့ စမ်းသပ် ရယူမည်</button>
+      </div>
+    </section>
+
+    <!-- TAB 2: MY KEY -->
+    <section id="view-key" class="tab-view hidden">
+      <div id="key-empty-card" class="card hidden">
+        <h3>🔑 သင့်တွင် Key မရှိသေးပါ</h3>
+        <p style="color:var(--text-muted);">အခမဲ့ စမ်းသပ် Key ရယူပါ သို့မဟုတ် ငွေပေး Plan ဝယ်ယူပါ။</p>
+        <div class="btn-row">
+          <button class="btn btn-primary" type="button" data-go-tab="home">⏳ အခမဲ့ စမ်းသပ်</button>
+          <button class="btn btn-secondary" type="button" data-go-tab="plans">💳 Plan ဝယ်မည်</button>
+        </div>
+      </div>
+
+      <div id="key-content-card" class="card hidden">
+        <svg class="card-ornament" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="none" stroke="currentColor" stroke-width="1.6" d="M3 3h18v18M9 3l12 12"/>
+        </svg>
+        <h2 style="font-size:1.1rem;">🔑 သင့် VPN Key နှင့် QR</h2>
+        <p style="color:var(--text-muted);font-size:0.9rem;">
+          Key ကို တစ်ချက်နှိပ်၍ ကူးယူပြီး Outline, Hiddify, v2rayNG, Streisand ထဲသို့ ထည့်သွင်းပါ။
+        </p>
+
+        <div id="key-servers-list"></div>
+
+        <div id="key-sub-wrap" class="hidden">
+          <div class="lotus-divider" aria-hidden="true">❖</div>
+          <div style="font-weight:700;font-size:0.95rem;">🌐 All-in-One Subscription Link (ဆာဗာအားလုံး):</div>
+          <div id="key-sub-box" class="mono-box" role="button" tabindex="0"></div>
+          <button id="btn-copy-sub" class="btn btn-secondary btn-sm" type="button">📋 Subscription Link ကူးယူမည်</button>
+        </div>
+
+        <div class="lotus-divider" aria-hidden="true">❖</div>
+
+        <div class="qr-frame">
+          <img id="key-qr-img" alt="Shadowsocks QR Code" src="/static/brand/logo.svg">
+        </div>
+
+        <div class="btn-row">
+          <button id="btn-regen-key" class="btn btn-secondary hidden" type="button">🔄 Key အသစ်လဲမည် (24h တစ်ကြိမ်)</button>
+          <button class="btn btn-secondary" type="button" data-go-tab="guide">🛡️ ထည့်သွင်းနည်း လမ်းညွှန်</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: PLANS & INSTANT SCREENSHOT CHECKOUT -->
+    <section id="view-plans" class="tab-view hidden">
+      <!-- Active Order Checkout Sheet -->
+      <div id="checkout-card" class="card hidden">
+        <h2 style="font-size:1.1rem;">💳 ငွေလွှဲရန် နှင့် Screenshot ပို့ရန်</h2>
+        <p style="color:var(--text-muted);font-size:0.92rem;">
+          Screenshot တင်ပြီးသည်နှင့် <b>သင့် VPN Key ကို ချက်ချင်း ထုတ်ပေးပါမည်!</b>
+        </p>
+        <div class="stat-row">
+          <span class="stat-label">ရွေးချယ်ထားသော Plan</span>
+          <span id="co-plan" class="stat-val">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">ပေးချေရမည့်ငွေ</span>
+          <span id="co-amount" class="stat-val">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">မှတ်ချက် (Note) ကုဒ်</span>
+          <span id="co-code" class="stat-val">—</span>
+        </div>
+
+        <div style="margin-top:8px;font-size:0.9rem;color:var(--text-muted);">KBZ Pay ဖုန်းနံပါတ် (နှိပ်၍ ကူးယူပါ):</div>
+        <div id="co-kbz-num" class="mono-box" role="button" tabindex="0">—</div>
+        <div style="font-size:0.92rem;">အကောင့်အမည်: <b id="co-kbz-name">—</b></div>
+
+        <div class="lotus-divider" aria-hidden="true">❖</div>
+
+        <div class="field">
+          <label for="shot-input">📸 ငွေလွှဲပြေစာ Screenshot ရွေးပါ (Key ချက်ချင်း ရပါမည်):</label>
+          <input id="shot-input" class="input" type="file" accept="image/*">
+        </div>
+        <button id="btn-submit-shot" class="btn btn-primary" type="button">✨ Screenshot ပို့ပြီး Key ချက်ချင်း ယူမည်</button>
+        <div class="btn-row">
+          <button id="btn-cancel-order" class="btn btn-danger btn-sm" type="button">✖️ အော်ဒါ ပယ်ဖျက်မည်</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="font-size:1.1rem;">💳 VPN Plan များ ရွေးချယ်ပါ</h2>
+        <p style="color:var(--text-muted);font-size:0.92rem;margin:0;">
+          Data အကန့်အသတ်မရှိ (Unlimited) • စက် 1 လုံး • မြန်နှုန်းမြင့် ဆာဗာများ
+        </p>
+      </div>
+
+      <div id="plans-container"></div>
+    </section>
+
+    <!-- TAB 4: GUIDES & SUPPORT -->
+    <section id="view-guide" class="tab-view hidden">
+      <div class="card">
+        <h2 style="font-size:1.1rem;">🛡️ VPN ထည့်သွင်းနည်း လမ်းညွှန်</h2>
+        <p style="color:var(--text-muted);font-size:0.92rem;">
+          သင်အသုံးပြုသော ဖုန်း သို့မဟုတ် ကွန်ပျူတာကို နှိပ်၍ အဆင့်ဆင့် ကြည့်ရှုပါ။
+        </p>
+
+        <div class="guide-item">
+          <button class="guide-summary" type="button" data-acc="g-android">
+            <span>📱 Android (Outline / Hiddify / v2rayNG)</span><span>▾</span>
+          </button>
+          <div id="g-android" class="guide-body">
+            1. Play Store မှ <b>Outline</b>၊ <b>Hiddify</b> သို့မဟုတ် <b>v2rayNG</b> ကို ဒေါင်းလုဒ်ဆွဲပါ။<br>
+            2. Key စာမျက်နှာမှ <code>ss://...</code> Key Link (သို့) Subscription Link ကို တစ်ချက်နှိပ်၍ Copy ကူးပါ။<br>
+            3. App ကိုဖွင့်ပြီး <b>'+' (Add Server)</b> ကိုနှိပ်ပါ — Clipboard သို့မဟုတ် QR Code မှ ထည့်သွင်းပါ။<br>
+            4. <b>Connect</b> ကိုနှိပ်၍ အသုံးပြုနိုင်ပါပြီ။
+          </div>
+        </div>
+
+        <div class="guide-item">
+          <button class="guide-summary" type="button" data-acc="g-ios">
+            <span>🍎 iPhone / iPad (Outline / Streisand / Hiddify)</span><span>▾</span>
+          </button>
+          <div id="g-ios" class="guide-body hidden">
+            1. App Store မှ <b>Outline</b> သို့မဟုတ် <b>Streisand</b> ကို ထည့်သွင်းပါ။<br>
+            2. <code>ss://...</code> Key Link ကို Copy ကူးပါ။<br>
+            3. App ထဲတွင် <b>'+' → Import from Clipboard</b> (သို့) <b>Scan QR</b> ကို ရွေးပါ။<br>
+            4. VPN Permission ကို <b>Allow</b> ပေးပြီး Connect လုပ်ပါ။
+          </div>
+        </div>
+
+        <div class="guide-item">
+          <button class="guide-summary" type="button" data-acc="g-pc">
+            <span>💻 Windows / macOS (Outline / Hiddify)</span><span>▾</span>
+          </button>
+          <div id="g-pc" class="guide-body hidden">
+            1. <b>Outline Client</b> သို့မဟုတ် <b>Hiddify</b> ကို ကွန်ပျူတာတွင် ထည့်သွင်းပါ။<br>
+            2. <code>ss://...</code> Key Link ကို Copy ကူးပါ။<br>
+            3. App ထဲတွင် <b>Add Server / '+'</b> ကိုနှိပ်ပြီး Key ကို Paste ထည့်၍ Connect နှိပ်ပါ။
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="font-size:1.05rem;">💬 အကူအညီ လိုအပ်ပါသလား?</h3>
+        <p style="color:var(--text-muted);font-size:0.94rem;">
+          ငွေပေးချေမှု သို့မဟုတ် Key အသုံးပြုရာတွင် အခက်အခဲရှိပါက Admin ထံ တိုက်ရိုက် ဆက်သွယ်နိုင်ပါသည်။
+        </p>
+        <a id="btn-support-link" class="btn btn-primary" href="https://t.me/Exabytedigitals" target="_blank" rel="noopener">
+          💬 Support (@Exabytedigitals) သို့ စာပို့ရန်
+        </a>
+      </div>
+    </section>
+
+    <!-- TAB 5: FULL WEB ADMIN PANEL -->
+    <section id="view-admin" class="tab-view hidden">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+          <h2 style="margin:0;font-size:1.1rem;">🛡️ Exabyte Web Admin Panel</h2>
+          <button id="btn-adm-refresh" class="btn btn-secondary btn-sm" style="width:auto;" type="button">🔄 Refresh</button>
+        </div>
+        <div id="adm-stats-grid" class="stats-grid"></div>
+      </div>
+
+      <!-- Admin Orders & Screenshots (Paid / Unpaid / Suspend / Edit) -->
+      <div class="card">
+        <h3 style="font-size:1.05rem;">💳 အော်ဒါများ နှင့် Screenshot စစ်ဆေးရန်</h3>
+        <p style="color:var(--text-muted);font-size:0.88rem;">
+          Paid နှိပ်လျှင် အတည်ပြုပြီး၊ Unpaid နှိပ်လျှင် ကြိုတင်ထုတ်ပေးထားသော Key ကို အလိုအလျောက် ပြန်ပိတ်ပါမည်။
+        </p>
+        <div id="adm-orders-list"></div>
+      </div>
+
+      <!-- Admin Users & Key Editor -->
+      <div class="card">
+        <h3 style="font-size:1.05rem;">🔑 သုံးစွဲသူများ နှင့် Key ပြင်ဆင်ရန်</h3>
+        <div id="adm-users-list"></div>
+      </div>
+
+      <!-- Multi-Panel 3X-UI Server Combinations -->
+      <div class="card">
+        <h3 style="font-size:1.05rem;">🖧 3X-UI ဆာဗာများ (Multi-Panel Key Combinations)</h3>
+        <p style="color:var(--text-muted);font-size:0.88rem;">
+          ဗားရှင်းတူ 3X-UI ဆာဗာအသစ်များ ထပ်ပေါင်းထည့်နိုင်ပြီး သုံးစွဲသူတိုင်း၏ Key တွင် အလိုအလျောက် ပေါင်းစပ်ပေးပါမည်။
+        </p>
+        <div id="adm-panels-list"></div>
+        <div class="lotus-divider" aria-hidden="true">❖</div>
+        <h4 style="margin:6px 0;">+ 3X-UI ဆာဗာအသစ် ထပ်ထည့်ရန်</h4>
+        <div class="field">
+          <label>ဆာဗာအမည် (ဥပမာ Server 2 SG)</label>
+          <input id="p-name" class="input" type="text" placeholder="Server 2 SG">
+        </div>
+        <div class="field">
+          <label>PANEL_BASE_URL (Secret Path ပါဝင်သော URL)</label>
+          <input id="p-url" class="input" type="url" placeholder="https://server2.example.com:8080/secretPath">
+        </div>
+        <div class="field">
+          <label>SERVER_HOST (Key Link တွင် သုံးမည့် Host/IP)</label>
+          <input id="p-host" class="input" type="text" placeholder="server2.example.com">
+        </div>
+        <div class="btn-row">
+          <div class="field" style="flex:1;">
+            <label>Username</label>
+            <input id="p-user" class="input" type="text" placeholder="admin">
+          </div>
+          <div class="field" style="flex:1;">
+            <label>Password</label>
+            <input id="p-pass" class="input" type="password" placeholder="••••••">
+          </div>
+        </div>
+        <div class="field">
+          <label>Inbound Remark</label>
+          <input id="p-remark" class="input" type="text" value="exabytetgbot">
+        </div>
+        <button id="btn-add-panel" class="btn btn-primary btn-sm" type="button">➕ 3X-UI ဆာဗာ ပေါင်းထည့်မည်</button>
+      </div>
+
+      <!-- Store Customizations & Broadcast -->
+      <div class="card">
+        <h3 style="font-size:1.05rem;">⚙️ ဆိုင်အချက်အလက် ပြင်ဆင်ရန် (Customizations)</h3>
+        <div class="field">
+          <label>KBZ Pay ဖုန်းနံပါတ်</label>
+          <input id="cfg-kbz-num" class="input" type="text">
+        </div>
+        <div class="field">
+          <label>KBZ Pay အကောင့်အမည်</label>
+          <input id="cfg-kbz-name" class="input" type="text">
+        </div>
+        <div class="field">
+          <label>Support URL</label>
+          <input id="cfg-support" class="input" type="url">
+        </div>
+        <div class="field">
+          <label>ဆိုင် ဆောင်ပုဒ် (Tagline)</label>
+          <input id="cfg-tagline" class="input" type="text">
+        </div>
+        <div class="field" style="display:flex;align-items:center;gap:10px;">
+          <input id="cfg-maint" type="checkbox" style="width:20px;height:20px;">
+          <label for="cfg-maint" style="margin:0;">ပြုပြင်မှုစနစ် (Maintenance Mode) ဖွင့်မည်</label>
+        </div>
+        <button id="btn-save-cfg" class="btn btn-primary btn-sm" type="button">💾 သိမ်းဆည်းမည်</button>
+
+        <div class="lotus-divider" aria-hidden="true">❖</div>
+
+        <h4 style="margin:6px 0;">✨ သုံးစွဲသူ အားလုံးထံ စာပို့ရန် (Broadcast)</h4>
+        <div class="field">
+          <textarea id="bcast-input" class="textarea" placeholder="ပို့လိုသော အကြောင်းကြားစာ ရိုက်ထည့်ပါ..."></textarea>
+        </div>
+        <button id="btn-send-bcast" class="btn btn-secondary btn-sm" type="button">📨 အားလုံးထံ စာပို့မည်</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Floating Liquid Glass Bottom Navigation Dock -->
+  <nav class="bottom-dock" aria-label="ပင်မ မီနူး">
+    <button class="dock-tab active" type="button" data-tab="home">
+      <span class="dock-icon">✨</span><span>ပင်မ</span>
+    </button>
+    <button class="dock-tab" type="button" data-tab="key">
+      <span class="dock-icon">🔑</span><span>Key</span>
+    </button>
+    <button class="dock-tab" type="button" data-tab="plans">
+      <span class="dock-icon">💳</span><span>Plan ဝယ်ရန်</span>
+    </button>
+    <button class="dock-tab" type="button" data-tab="guide">
+      <span class="dock-icon">🛡️</span><span>လမ်းညွှန်</span>
+    </button>
+    <button id="dock-admin-tab" class="dock-tab hidden" type="button" data-tab="admin">
+      <span class="dock-icon">⚙️</span><span>Admin</span>
+    </button>
+  </nav>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

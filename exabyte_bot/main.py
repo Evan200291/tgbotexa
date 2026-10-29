@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import uvicorn
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -16,6 +17,7 @@ from .config import Settings, require_runtime_secrets
 from .db import Database
 from .jobs import BackgroundRunner
 from .service import Service
+from .webapp.api import create_webapp
 from .xui import XUIClient
 
 log = logging.getLogger(__name__)
@@ -66,11 +68,20 @@ async def run() -> None:  # pragma: no cover - production entrypoint
     log.info("started bot @%s (id=%s)", me.username, me.id)
 
     dp = build_dispatcher(svc, settings)
+    webapp = create_webapp(svc, settings, bot=bot)
+    uv_cfg = uvicorn.Config(
+        webapp, host=settings.web_host, port=settings.web_port, log_level="info"
+    )
+    uv_server = uvicorn.Server(uv_cfg)
+
     jobs = BackgroundRunner(svc, bot, settings)
     jobs.start()
+    web_task = asyncio.create_task(uv_server.serve(), name="exabyte-webapp")
     try:
         await dp.start_polling(bot)
     finally:
+        uv_server.should_exit = True
+        await web_task
         await jobs.stop()
         await bot.session.close()
         await xui.aclose()
@@ -79,3 +90,4 @@ async def run() -> None:  # pragma: no cover - production entrypoint
 
 if __name__ == "__main__":  # pragma: no cover
     asyncio.run(run())
+

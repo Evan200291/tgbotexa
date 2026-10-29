@@ -1,0 +1,24 @@
+# BotFather setup text for Exabyte Digital Store (@BotFather)
+
+## /setname
+Exabyte Digital Store
+
+## /setabouttext (About — short profile bio)
+✨ Exabyte Digital Store — လုံခြုံ မြန်ဆန် စိတ်ချရသော မြန်မာ VPN နှင့် ဒစ်ဂျစ်တယ်ဆိုင်။ Support: @Exabytedigitals
+
+## /setdescription (Description — shown before /start)
+✨ Exabyte Digital Store မှ ကြိုဆိုပါသည်!
+🛡️ လုံခြုံ မြန်ဆန် စိတ်ချရသော ဒစ်ဂျစ်တယ်ဆိုင်
+
+• ⏳ အခမဲ့ စမ်းသပ် Key (5 GB / 7 ရက်)
+• 💳 KBZ Pay ဖြင့် လွယ်ကူစွာ ဝယ်ယူပြီး Key ချက်ချင်း ရယူနိုင်သည်
+• 📶 Data အကန့်အသတ်မရှိ (Unlimited) မြန်နှုန်းမြင့် ဆာဗာများ
+• ✨ Mini App မှတစ်ဆင့် Key၊ သုံးစွဲမှုနှင့် သက်တမ်းကို အချိန်မရွေး စစ်ဆေးနိုင်သည်
+
+စတင်ရန် အောက်ပါ START ခလုတ်ကို နှိပ်ပါ။
+
+## /setcommands (Commands list)
+start - ✨ ပင်မမီနူး နှင့် Mini App ဖွင့်ရန်
+myid - 🔑 မိမိ Telegram ID စစ်ဆေးရန်
+help - 🛡️ အသုံးပြုပုံ လမ်းညွှန်
+admin - ⚙️ Admin Panel (Admin များသာ)

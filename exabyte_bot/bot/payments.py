@@ -22,7 +22,9 @@ from .messages import (
     format_plans_message,
     order_created_kb,
     plans_kb,
+    status_label,
 )
+from .user import send_key_card
 
 CODE_RE = re.compile(r"^EX[A-Z2-9]{6}$")
 
@@ -131,13 +133,20 @@ def build_payments_router() -> Router:
             return
 
         await state.clear()
-        await msg.answer(
-            branded(t("order_received_wait", code=order.code)),
-            parse_mode="HTML",
-            reply_markup=back_home_kb(),
-        )
+        kv = await svc.get_key(uid)
+        if kv is not None:
+            intro = t("order_instant_key_intro", code=order.code, plan_name=order.plan.name)
+            await send_key_card(
+                bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc, settings=settings
+            )
+        else:
+            await msg.answer(
+                branded(t("order_received_wait", code=order.code)),
+                parse_mode="HTML",
+                reply_markup=back_home_kb(),
+            )
 
-        # Forward to the primary admin with Approve / Reject buttons.
+        # Forward screenshot + account ID + package + key details + rich buttons to admin.
         if settings.admin_ids:
             uname = f"@{msg.from_user.username}" if msg.from_user.username else "-"
             caption = branded(
@@ -147,7 +156,10 @@ def build_payments_router() -> Router:
                     user_id=uid,
                     username=uname,
                     plan_name=order.plan.name,
+                    days=order.plan.days,
                     amount=order.amount_text,
+                    key_email=kv.email if kv else "-",
+                    key_status=status_label(kv.status) if kv else "-",
                 )
             )
             await bot.send_photo(
@@ -155,7 +167,9 @@ def build_payments_router() -> Router:
                 photo=best_photo.file_id,
                 caption=caption,
                 parse_mode="HTML",
-                reply_markup=admin_order_review_kb(order.code),
+                reply_markup=admin_order_review_kb(
+                    order.code, uid, key_enabled=kv.enabled if kv else True
+                ),
             )
 
     @r.message(StateFilter(PaymentStates.waiting_screenshot))
@@ -169,3 +183,4 @@ def build_payments_router() -> Router:
         )
 
     return r
+

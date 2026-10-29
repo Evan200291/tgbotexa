@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 160" width="680" height="160" role="img" aria-label="Exabyte Digital Store">
+  <defs>
+    <linearGradient id="wg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F3D98B"/>
+      <stop offset="55%" stop-color="#D4A23A"/>
+      <stop offset="100%" stop-color="#9A6B12"/>
+    </linearGradient>
+  </defs>
+  <!-- Left geometric E mark -->
+  <g fill="url(#wg)">
+    <rect x="18" y="20" width="24" height="120" rx="2"/>
+    <polygon points="52,20 128,20 110,48 52,48"/>
+    <polygon points="52,66 100,66 82,94 52,94"/>
+    <polygon points="52,112 128,112 110,140 52,140"/>
+  </g>
+  <!-- Vertical divider line -->
+  <rect x="154" y="24" width="2.5" height="112" fill="url(#wg)" opacity="0.45"/>
+  <!-- EXABYTE headline + DIGITAL STORE subhead -->
+  <text x="182" y="95" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="76" font-weight="800" letter-spacing="2" fill="url(#wg)">EXABYTE</text>
+  <text x="185" y="136" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="600" letter-spacing="11" fill="#F3D98B" opacity="0.9">DIGITAL STORE</text>
+</svg>

@@ -179,3 +179,4 @@ class BackgroundRunner:
                 await run_backup_once(self.svc, self.bot, self.settings)
             except Exception:
                 log.exception("unexpected error in backup loop")
+

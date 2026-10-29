@@ -34,9 +34,24 @@ GUIDE_KEYS = {
 
 
 async def send_key_card(
-    bot: Bot, chat_id: int, kv: KeyView, now: datetime, *, intro: str | None = None
+    bot: Bot,
+    chat_id: int,
+    kv: KeyView,
+    now: datetime,
+    *,
+    intro: str | None = None,
+    svc: Service | None = None,
+    settings: Settings | None = None,
 ) -> None:
-    caption = format_key_message(kv, now, intro=intro)
+    servers = await svc.get_key_links(kv.user_id) if svc is not None else None
+    sub_url = (
+        f"https://{settings.bot_domain}/sub/{kv.sub_id}"
+        if (settings and settings.bot_domain and kv.sub_id)
+        else None
+    )
+    caption = format_key_message(
+        kv, now, intro=intro, extra_servers=servers, sub_url=sub_url
+    )
     photo = BufferedInputFile(qr_png(kv.link), filename="exabyte-key.png")
     await bot.send_photo(
         chat_id=chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=key_kb(kv)
@@ -93,10 +108,10 @@ def build_user_router() -> Router:
             )
             return
         intro = t("trial_ok", gb=P.TRIAL_QUOTA_GB, days=P.TRIAL_DAYS)
-        await send_key_card(bot, chat_id, kv, svc.now(), intro=intro)
+        await send_key_card(bot, chat_id, kv, svc.now(), intro=intro, svc=svc)
 
     @r.callback_query(F.data == "nav:key")
-    async def cb_my_key(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
+    async def cb_my_key(cb: CallbackQuery, svc: Service, settings: Settings, bot: Bot) -> None:
         await cb.answer()
         uid = cb.from_user.id
         chat_id = cb.message.chat.id if cb.message else uid
@@ -106,10 +121,10 @@ def build_user_router() -> Router:
                 chat_id, branded(t("no_key")), parse_mode="HTML", reply_markup=back_home_kb()
             )
             return
-        await send_key_card(bot, chat_id, kv, svc.now())
+        await send_key_card(bot, chat_id, kv, svc.now(), svc=svc, settings=settings)
 
     @r.callback_query(F.data == "key:regen")
-    async def cb_regen_key(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
+    async def cb_regen_key(cb: CallbackQuery, svc: Service, settings: Settings, bot: Bot) -> None:
         await cb.answer()
         uid = cb.from_user.id
         chat_id = cb.message.chat.id if cb.message else uid
@@ -125,7 +140,9 @@ def build_user_router() -> Router:
                 chat_id, branded(t("panel_down")), parse_mode="HTML", reply_markup=back_home_kb()
             )
             return
-        await send_key_card(bot, chat_id, kv, svc.now(), intro=t("regen_ok"))
+        await send_key_card(
+            bot, chat_id, kv, svc.now(), intro=t("regen_ok"), svc=svc, settings=settings
+        )
 
     @r.callback_query(F.data == "nav:usage")
     async def cb_usage(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
@@ -194,3 +211,4 @@ def build_fallback_router() -> Router:
         await cb.answer()
 
     return r
+

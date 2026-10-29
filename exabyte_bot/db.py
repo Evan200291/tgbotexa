@@ -104,6 +104,27 @@ MIGRATIONS: list[str] = [
         value TEXT NOT NULL
     );
     """,
+    # v2: optimistic key snapshot on orders + multi-panel 3X-UI support
+    """
+    ALTER TABLE orders ADD COLUMN prev_snapshot TEXT;
+
+    CREATE TABLE panels (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        name            TEXT NOT NULL,
+        base_url        TEXT NOT NULL,
+        username        TEXT NOT NULL,
+        password        TEXT NOT NULL,
+        verify_tls      INTEGER NOT NULL DEFAULT 1,
+        inbound_remark  TEXT NOT NULL DEFAULT 'exabytetgbot',
+        server_host     TEXT NOT NULL,
+        inbound_id      INTEGER NOT NULL DEFAULT 0,
+        port            INTEGER NOT NULL DEFAULT 0,
+        method          TEXT NOT NULL DEFAULT 'chacha20-ietf-poly1305',
+        server_key      TEXT,
+        enabled         INTEGER NOT NULL DEFAULT 1,
+        created_at      INTEGER NOT NULL
+    );
+    """,
 ]
 
 

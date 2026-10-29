@@ -88,6 +88,11 @@ S: dict[str, str] = {
         "အော်ဒါကုဒ်: <code>{code}</code>\n"
         "စစ်ဆေးပြီးသည်နှင့် သင့် Key ကို အလိုအလျောက် ပို့ပေးပါမည်။"
     ),
+    "order_instant_key_intro": (
+        "✨ <b>Screenshot လက်ခံရရှိပြီး သင့် VPN Key ကို ချက်ချင်း ထုတ်ပေးလိုက်ပါပြီ!</b>\n"
+        "• အော်ဒါကုဒ်: <code>{code}</code> ({plan_name})\n"
+        "• Admin မှ ငွေလွှဲပြေစာကို ဆက်လက်အတည်ပြုပေးပါမည်။ (ငွေလွှဲမမှန်ကန်ပါက Key ပြန်ပိတ်ပါမည်)"
+    ),
     "order_cancelled": "အော်ဒါ <code>{code}</code> ကို ပယ်ဖျက်ပြီးပါပြီ။",
     "order_open_exists": "⏳ သင့်တွင် မပြီးသေးသော အော်ဒါ <code>{code}</code> ရှိနေပါသည်။ ၎င်းကို အရင် ပြီးအောင် လုပ်ပေးပါ (သို့) ပယ်ဖျက်ပါ။",
     "order_not_found": "အော်ဒါ ရှာမတွေ့ပါ။",
@@ -188,16 +193,30 @@ S: dict[str, str] = {
     "btn_adm_broadcast": "✨ အားလုံးထံ စာပို့ရန်",
     "btn_adm_maint": "⏳ ပြုပြင်မှုစနစ်: {state}",
     "btn_adm_csv": "📋 အော်ဒါ CSV ထုတ်ရန်",
-    "btn_approve": "✅ အတည်ပြုမည်",
-    "btn_reject": "❌ ပယ်ချမည်",
+    "btn_approve": "✅ Paid (အတည်ပြုမည်)",
+    "btn_reject": "❌ Unpaid (ငွေမရရှိပါ)",
+    "btn_suspend_key": "⏸️ Key ယာယီပိတ်မည်",
+    "btn_resume_key": "▶️ Key ပြန်ဖွင့်မည်",
+    "btn_edit_key": "✏️ Key ပြင်မည်",
+    "btn_msg_user": "✉️ စာပို့မည်",
+    "btn_adm_web": "🌐 Web Admin ဖွင့်မည်",
+    "btn_adm_panels": "🖧 3X-UI ဆာဗာများ ({n})",
     "btn_skip_reason": "အကြောင်းရင်း မထည့်ဘဲ ပယ်ချမည်",
     "adm_new_order_caption": (
-        "💳 <b>ငွေလွှဲ စစ်ဆေးရန်</b>\n"
+        "💳 <b>ငွေလွှဲ Screenshot နှင့် Key အချက်အလက်</b>\n"
         "• အော်ဒါ: <code>{code}</code>\n"
-        "• သုံးစွဲသူ: <code>{user_id}</code> ({username})\n"
-        "• Plan: <b>{plan_name}</b> — <b>{amount}</b>"
+        "• အကောင့် ID: <code>{user_id}</code> ({username})\n"
+        "• Package: <b>{plan_name}</b> ({days} ရက်) — <b>{amount}</b>\n"
+        "• Key: <code>{key_email}</code> ({key_status})\n"
+        "• အခြေအနေ: <b>Key ကြိုတင်ထုတ်ပေးပြီး (စစ်ဆေးရန်)</b>"
     ),
     "adm_ask_reject_reason": "အော်ဒါ <code>{code}</code> ပယ်ချရသည့် အကြောင်းရင်းကို စာရိုက်ပို့ပါ (သို့) အောက်ပါခလုတ်ကို နှိပ်ပါ။",
+    "adm_ask_msg_user": "သုံးစွဲသူ <code>{user_id}</code> ထံ ပို့လိုသော စာသားကို ရိုက်ပို့ပါ။",
+    "adm_msg_from_admin": "🛡️ <b>Admin မှ အကြောင်းကြားစာ</b>\n\n{text}",
+    "key_suspended_notify": "⏸️ သင့် VPN Key ကို Admin မှ ယာယီ ပိတ်ထားပါသည်။ အကူအညီလိုပါက Support သို့ ဆက်သွယ်ပါ။",
+    "key_resumed_notify": "▶️ သင့် VPN Key ကို ပြန်လည် ဖွင့်ပေးလိုက်ပါပြီ။",
+    "sub_link_section": "\n🌐 <b>All-in-One Subscription Link:</b>\n<code>{sub_url}</code>\n",
+    "extra_servers_section": "\n🖧 <b>အပို ဆာဗာ Key များ:</b>\n{servers}",
     "adm_stats_body": (
         "📶 <b>Exabyte စာရင်းချုပ်</b>\n\n"
         "• စုစုပေါင်း သုံးစွဲသူ: <b>{total_users}</b>\n"

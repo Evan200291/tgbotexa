@@ -68,3 +68,4 @@ async def _reply(event: TelegramObject, text: str) -> None:
             await event.message.answer(text, parse_mode="HTML")
     elif isinstance(event, Message):
         await event.answer(text, parse_mode="HTML")
+

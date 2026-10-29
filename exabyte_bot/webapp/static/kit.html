@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="my" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exabyte Design Kit (/dev/kit)</title>
+  <link rel="icon" type="image/svg+xml" href="/static/brand/favicon.svg">
+  <link rel="stylesheet" href="/static/css/theme.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="hero-header">
+      <svg class="hero-pagoda-bg" viewBox="0 0 200 100" aria-hidden="true">
+        <path fill="currentColor" d="M140 8 L143 22 L149 38 L158 58 L174 78 L195 92 L195 100 L65 100 L65 92 L92 82 L104 66 L112 46 L117 28 L120 14 L122 28 L127 46 L133 38 L137 22 Z"/>
+      </svg>
+      <div class="hero-top">
+        <div class="brand-lockup">
+          <img src="/static/brand/logo.svg" alt="Exabyte" class="brand-logo">
+          <div>
+            <div class="brand-title">Exabyte Design Kit</div>
+            <div class="brand-tagline">လုံခြုံ မြန်ဆန် စိတ်ချရသော ဒစ်ဂျစ်တယ်ဆိုင်</div>
+          </div>
+        </div>
+        <button id="kit-theme" class="theme-btn" type="button">🌙</button>
+      </div>
+    </header>
+
+    <!-- Status Badges -->
+    <section class="card">
+      <h2>1. အခြေအနေ ပြသချက်များ (Status Badges)</h2>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <span class="badge badge-active">● အသုံးပြုနေဆဲ</span>
+        <span class="badge badge-expired">● သက်တမ်းကုန်ပြီ</span>
+        <span class="badge badge-none">● Key မရှိသေးပါ</span>
+      </div>
+    </section>
+
+    <!-- Buttons -->
+    <section class="card">
+      <h2>2. ခလုတ်များ (Buttons — min 48px)</h2>
+      <div class="btn-row">
+        <button class="btn btn-primary" type="button">✨ အခမဲ့ စမ်းသပ် ရယူမည်</button>
+        <button class="btn btn-secondary" type="button">🔑 Key အသစ်လဲမည်</button>
+        <button class="btn btn-danger" type="button">✖️ အော်ဒါ ပယ်ဖျက်မည်</button>
+      </div>
+    </section>
+
+    <!-- Usage Rings -->
+    <section class="card">
+      <h2>3. Data သုံးစွဲမှု ကွင်းများ (Usage Rings)</h2>
+      <div style="display:flex;justify-content:space-around;flex-wrap:wrap;gap:12px;">
+        <div class="ring-center-label">
+          <svg class="ring-svg" viewBox="0 0 120 120">
+            <circle class="ring-track" cx="60" cy="60" r="48"></circle>
+            <circle class="ring-progress" cx="60" cy="60" r="48" stroke-dasharray="301.6" stroke-dashoffset="180"></circle>
+          </svg>
+          <div class="ring-value">40%</div>
+          <div class="ring-sub">2.0 / 5.0 GB</div>
+        </div>
+        <div class="ring-center-label">
+          <svg class="ring-svg" viewBox="0 0 120 120">
+            <circle class="ring-track" cx="60" cy="60" r="48"></circle>
+            <circle class="ring-progress warn" cx="60" cy="60" r="48" stroke-dasharray="301.6" stroke-dashoffset="45"></circle>
+          </svg>
+          <div class="ring-value">85%</div>
+          <div class="ring-sub">Warning</div>
+        </div>
+        <div class="ring-center-label">
+          <svg class="ring-svg" viewBox="0 0 120 120">
+            <circle class="ring-track" cx="60" cy="60" r="48"></circle>
+            <circle class="ring-progress" cx="60" cy="60" r="48" stroke-dasharray="301.6" stroke-dashoffset="0"></circle>
+          </svg>
+          <div class="ring-value">∞</div>
+          <div class="ring-sub">အကန့်အသတ်မရှိ</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Plan Cards -->
+    <section>
+      <div class="plan-card plan-1m">
+        <div class="plan-head">
+          <div class="plan-name">🛡️ 1 လ Plan</div>
+          <div class="plan-price-wrap"><span class="plan-price">5,000 ကျပ်</span></div>
+        </div>
+        <div class="plan-features">📶 Data အကန့်အသတ်မရှိ • 📱 စက် 1 လုံး • ⏳ 30 ရက်</div>
+      </div>
+
+      <div class="plan-card plan-3m">
+        <div class="plan-ribbon">🏷️ 500 ကျပ် သက်သာ</div>
+        <div class="plan-head">
+          <div class="plan-name">🛡️ 3 လ Plan</div>
+          <div class="plan-price-wrap">
+            <span class="plan-old-price">15,000 ကျပ်</span>
+            <span class="plan-price">14,500 ကျပ်</span>
+          </div>
+        </div>
+        <div class="plan-features">📶 Data အကန့်အသတ်မရှိ • 📱 စက် 1 လုံး • ⏳ 90 ရက်</div>
+      </div>
+
+      <div class="plan-card plan-6m">
+        <div class="plan-ribbon">✨ အတန်ဆုံး • 1,000 ကျပ် သက်သာ</div>
+        <div class="plan-head">
+          <div class="plan-name">🛡️ 6 လ Plan</div>
+          <div class="plan-price-wrap">
+            <span class="plan-old-price">30,000 ကျပ်</span>
+            <span class="plan-price">29,000 ကျပ်</span>
+          </div>
+        </div>
+        <div class="plan-features">📶 Data အကန့်အသတ်မရှိ • 📱 စက် 1 လုံး • ⏳ 180 ရက်</div>
+      </div>
+    </section>
+
+    <!-- Skeletons, Empty & Error States -->
+    <section class="card">
+      <h2>4. Skeleton & Empty / Error States</h2>
+      <div class="skeleton" style="height:48px;"></div>
+      <div class="mono-box">⏳ ဆာဗာ ခဏ အလုပ်များနေပါသည်။ ခဏစောင့်ပေးပါ။</div>
+    </section>
+  </main>
+
+  <script>
+    if (window.location.search.indexOf("theme=light") !== -1) {
+      document.documentElement.setAttribute("data-theme", "light");
+      document.getElementById("kit-theme").textContent = "☀️";
+    }
+    document.getElementById("kit-theme").addEventListener("click", function () {
+      var root = document.documentElement;
+      var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      this.textContent = next === "light" ? "☀️" : "🌙";
+    });
+  </script>
+</body>
+</html>

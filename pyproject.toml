@@ -14,6 +14,7 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S", "B"]
+"exabyte_bot/webapp/api.py" = ["B008"]
 # Burmese text legitimately contains characters ruff flags as ambiguous.
 "exabyte_bot/strings.py" = ["E501", "RUF001"]
 
