@@ -65,17 +65,25 @@ def build_user_router() -> Router:
     r = Router(name="user")
 
     @r.message(Command("start"))
-    async def cmd_start(msg: Message, settings: Settings, state: FSMContext) -> None:
+    async def cmd_start(msg: Message, settings: Settings, state: FSMContext, bot: Bot) -> None:
         await state.clear()
+        name = (msg.from_user.first_name if (msg.from_user and msg.from_user.first_name) else "").strip()
+        greeting = f"👋 မင်္ဂလာပါ <b>{name}</b>" if name else "👋 မင်္ဂလာပါ"
+        await bot.send_message(
+            msg.chat.id,
+            greeting,
+            parse_mode="HTML",
+            reply_markup=reply_menu_kb(settings),
+        )
         await msg.answer(
-            branded(t("welcome_body")), parse_mode="HTML", reply_markup=reply_menu_kb(settings)
+            branded(t("welcome_body")), parse_mode="HTML", reply_markup=main_menu_kb(settings)
         )
 
     @r.message(F.text.in_({"start", "Start", "START", "🏠 ပင်မမီနူး", "ပင်မမီနူး"}))
     async def msg_home(msg: Message, settings: Settings, state: FSMContext) -> None:
         await state.clear()
         await msg.answer(
-            branded(t("welcome_body")), parse_mode="HTML", reply_markup=reply_menu_kb(settings)
+            branded(t("welcome_body")), parse_mode="HTML", reply_markup=main_menu_kb(settings)
         )
 
     @r.message(F.text.contains("အခမဲ့ စမ်းသပ်"))
