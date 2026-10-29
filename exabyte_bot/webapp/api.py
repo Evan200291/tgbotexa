@@ -29,9 +29,15 @@ from ..bot.user import send_key_card
 from ..config import Settings, check_dev_mode
 from ..service import Service, ServiceError
 from ..strings import S, t
-from ..util import fmt_date, fmt_mmk
+from ..util import days_left, fmt_date, fmt_mmk
 from ..xui import PanelUnavailable, XUIError, qr_png
-from .auth import AuthError, WebAppUser, validate_init_data, verify_admin_web_token
+from .auth import (
+    AuthError,
+    WebAppUser,
+    create_admin_web_token,
+    validate_init_data,
+    verify_admin_web_token,
+)
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +66,26 @@ class RejectBody(BaseModel):
 class UserActionBody(BaseModel):
     action: str
     plan_id: str = "vpn_1m"
+    target_sub_id: int | None = None
+    panel_id: int = 0
     message: str = ""
+
+
+class AdminLoginBody(BaseModel):
+    username: str
+    password: str
+
+
+class AdminKeyEditBody(BaseModel):
+    set_days: int | None = None
+    add_days: int = 0
+    set_quota_gb: float | None = None
+    add_gb: int = 0
+    reset_used: bool = False
+    enabled: bool | None = None
+    kind: str | None = None
+    panel_id: int | None = None
+    multi_server: bool | None = None
 
 
 class PanelCreateBody(BaseModel):
@@ -70,7 +95,7 @@ class PanelCreateBody(BaseModel):
     password: str
     server_host: str
     inbound_remark: str = "exabytetgbot"
-    verify_tls: bool = True
+    verify_tls: bool = False
 
 
 class PanelToggleBody(BaseModel):
@@ -168,8 +193,15 @@ def create_webapp(
 
     # ---------------- HTML pages & Subscription URL ----------------
     @app.get("/", response_class=HTMLResponse)
-    @app.get("/admin", response_class=HTMLResponse)
     async def index_page() -> FileResponse:
+        return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/admin", response_class=HTMLResponse)
+    @app.get("/superadmin", response_class=HTMLResponse)
+    async def superadmin_page() -> FileResponse:
+        sa_file = STATIC_DIR / "superadmin.html"
+        if sa_file.is_file():
+            return FileResponse(sa_file)
         return FileResponse(STATIC_DIR / "index.html")
 
     @app.get("/dev/kit", response_class=HTMLResponse)
@@ -466,6 +498,27 @@ def create_webapp(
         }
 
     # ---------------- Web Admin Panel API ----------------
+    @app.post("/api/admin/login")
+    async def api_admin_login(body: AdminLoginBody) -> dict[str, Any]:
+        import hmac
+
+        expected_user = (await svc.db.get_setting("admin_web_user")) or settings.panel_user or "exabyte"
+        expected_pass = (
+            (await svc.db.get_setting("admin_web_pass"))
+            or settings.panel_pass.get_secret_value()
+            or "exabyte"
+        )
+        u_ok = hmac.compare_digest(body.username.strip(), expected_user)
+        p_ok = hmac.compare_digest(body.password, expected_pass)
+        if not (u_ok and p_ok):
+            raise HTTPException(status_code=401, detail="Username သို့မဟုတ် Password မှားနေပါသည်")
+        admin_id = settings.admin_ids[0] if settings.admin_ids else 1877867098
+        await svc.ensure_user(admin_id, "superadmin", "Super Admin")
+        tok = create_admin_web_token(
+            admin_id, settings.bot_token.get_secret_value(), now=svc.now()
+        )
+        return {"token": tok, "admin_id": admin_id}
+
     @app.get("/api/admin/orders/{code}/screenshot")
     async def api_admin_order_screenshot(
         code: str,
@@ -503,15 +556,18 @@ def create_webapp(
     async def api_admin_overview(
         _admin: WebAppUser = Depends(require_admin),
     ) -> dict[str, Any]:
+        now = svc.now()
         stats = await svc.stats()
         order_rows = await svc.db.fetchall(
             "SELECT o.*, u.username FROM orders o LEFT JOIN users u ON u.telegram_id=o.user_id "
-            "ORDER BY o.created_at DESC LIMIT 40"
+            "ORDER BY o.created_at DESC LIMIT 100"
         )
         orders_out = []
         shots_dir = settings.data_dir / "screenshots"
         for r in order_rows:
-            kv = await svc.get_key(int(r["user_id"]))
+            r_keys = set(r.keys())
+            tsub = int(r["target_sub_id"]) if ("target_sub_id" in r_keys and r["target_sub_id"]) else None
+            kv = await svc.get_key(int(r["user_id"]), tsub)
             code = r["code"]
             has_shot = bool(
                 r["screenshot_file_id"]
@@ -534,31 +590,45 @@ def create_webapp(
             })
 
         user_rows = await svc.db.fetchall(
-            "SELECT * FROM users ORDER BY last_seen_at DESC LIMIT 40"
+            "SELECT * FROM users ORDER BY last_seen_at DESC LIMIT 200"
         )
         users_out = []
         for u in user_rows:
             uid = int(u["telegram_id"])
-            kv = await svc.get_key(uid)
+            keys_list = await svc.list_keys(uid)
+            kv = keys_list[0] if keys_list else None
+            oc = await svc.db.fetchone("SELECT COUNT(*) AS c FROM orders WHERE user_id=?", (uid,))
+            keys_serialized = [
+                {
+                    "id": k.id,
+                    "email": k.email,
+                    "kind": k.kind,
+                    "plan_id": k.plan_id,
+                    "status": k.status,
+                    "enabled": k.enabled,
+                    "panel_id": k.panel_id,
+                    "multi_server": k.multi_server,
+                    "used_bytes": k.used_bytes,
+                    "quota_bytes": k.quota_bytes,
+                    "remaining_bytes": k.remaining_bytes,
+                    "unlimited": k.unlimited,
+                    "expiry_ms": k.expiry_ms,
+                    "expiry_date": fmt_date(k.expiry_ms),
+                    "days_left": days_left(k.expiry_ms, now),
+                    "link": k.link,
+                }
+                for k in keys_list
+            ]
             users_out.append({
                 "user_id": uid,
                 "username": u["username"] or "-",
                 "first_name": u["first_name"] or "",
                 "banned": bool(u["banned"]),
-                "key": (
-                    {
-                        "email": kv.email,
-                        "kind": kv.kind,
-                        "status": kv.status,
-                        "enabled": kv.enabled,
-                        "used_bytes": kv.used_bytes,
-                        "quota_bytes": kv.quota_bytes,
-                        "unlimited": kv.unlimited,
-                        "expiry_date": fmt_date(kv.expiry_ms),
-                    }
-                    if kv
-                    else None
-                ),
+                "created_at": fmt_date(int(u["created_at"])) if u["created_at"] else "-",
+                "last_seen_at": fmt_date(int(u["last_seen_at"])) if u["last_seen_at"] else "-",
+                "order_count": int(oc["c"]) if oc else 0,
+                "keys": keys_serialized,
+                "key": keys_serialized[0] if keys_serialized else None,
             })
 
         return {
@@ -570,8 +640,48 @@ def create_webapp(
             "orders": orders_out,
             "users": users_out,
             "panels": await svc.list_panels(),
+            "plans": [
+                {"id": p.id, "name": p.name, "days": p.days, "price_text": fmt_mmk(p.price_mmk)}
+                for p in P.all_plans()
+            ],
             "store": await _effective_store_config(),
         }
+
+    @app.post("/api/admin/keys/{key_id}/edit")
+    async def api_admin_edit_key(
+        key_id: int, body: AdminKeyEditBody, admin: WebAppUser = Depends(require_admin)
+    ) -> dict[str, Any]:
+        try:
+            await svc.admin_edit_key_by_id(
+                admin.id,
+                key_id,
+                set_days=body.set_days,
+                add_days=body.add_days,
+                set_quota_gb=body.set_quota_gb,
+                add_gb=body.add_gb,
+                reset_used=body.reset_used,
+                enabled=body.enabled,
+                kind=body.kind,
+                panel_id=body.panel_id,
+                multi_server=body.multi_server,
+            )
+        except ServiceError as e:
+            raise HTTPException(status_code=400, detail=e.message()) from None
+        except PanelUnavailable:
+            raise HTTPException(status_code=503, detail=t("panel_down")) from None
+        return {"message": t("adm_action_done")}
+
+    @app.delete("/api/admin/keys/{key_id}")
+    async def api_admin_delete_key(
+        key_id: int, admin: WebAppUser = Depends(require_admin)
+    ) -> dict[str, Any]:
+        try:
+            await svc.admin_delete_key_by_id(admin.id, key_id)
+        except ServiceError as e:
+            raise HTTPException(status_code=400, detail=e.message()) from None
+        except PanelUnavailable:
+            raise HTTPException(status_code=503, detail=t("panel_down")) from None
+        return {"message": t("adm_action_done")}
 
     @app.post("/api/admin/orders/{code}/approve")
     async def api_admin_approve(
@@ -628,7 +738,21 @@ def create_webapp(
             elif act == "unban":
                 await svc.admin_set_banned(admin.id, uid, False)
             elif act == "grant":
-                await svc.grant_plan(admin.id, uid, body.plan_id)
+                await svc.grant_plan(
+                    admin.id,
+                    uid,
+                    body.plan_id,
+                    target_sub_id=body.target_sub_id,
+                    panel_id=body.panel_id,
+                )
+            elif act == "message":
+                from html import escape
+
+                msg_txt = body.message.strip()
+                if not msg_txt:
+                    raise HTTPException(status_code=400, detail="Empty message")
+                if bot is not None:
+                    await bot.send_message(uid, branded(escape(msg_txt)), parse_mode="HTML")
             else:
                 raise HTTPException(status_code=400, detail="Unknown action")
         except ServiceError as e:

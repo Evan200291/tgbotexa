@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="my" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Exabyte Super Admin Panel</title>
+  <link rel="icon" type="image/svg+xml" href="/static/brand/favicon.svg">
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <style>
+    .sa-shell { max-width: 1120px; margin: 0 auto; padding: 16px 14px 90px; }
+    .sa-nav { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+    .sa-nav-btn {
+      flex: 1; min-width: 130px; padding: 10px 14px; border-radius: 12px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font-weight: 700; cursor: pointer; text-align: center;
+    }
+    .sa-nav-btn.active {
+      background: var(--primary); color: var(--bg); border-color: var(--primary);
+    }
+    .sa-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+    .sa-key-box {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+      padding: 12px; margin-top: 10px;
+    }
+    .sa-user-card {
+      border: 1px solid var(--border); border-radius: 14px; padding: 14px;
+      margin-bottom: 14px; background: var(--surface);
+    }
+    .sa-modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.72); z-index: 900;
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+    }
+    .sa-modal {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 18px;
+    }
+    .sa-pill {
+      display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.78rem;
+      font-weight: 700; border: 1px solid var(--border); margin-right: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="toast" class="toast hidden" role="alert"></div>
+
+  <!-- Standalone Web Login Screen -->
+  <div id="login-screen" class="sa-shell hidden" style="max-width:440px;margin-top:48px;">
+    <div class="card">
+      <div style="text-align:center;margin-bottom:14px;">
+        <img src="/static/brand/logo.svg" alt="Exabyte" width="64" height="64" class="brand-logo">
+        <h2 style="margin:8px 0 4px;">🛡️ Exabyte Super Admin</h2>
+        <div style="color:var(--text-muted);font-size:0.9rem;">Standalone Web Control Center</div>
+      </div>
+      <form id="login-form">
+        <div class="field">
+          <label>Admin Username</label>
+          <input id="login-user" class="input" type="text" placeholder="exabyte" required autocomplete="username">
+        </div>
+        <div class="field">
+          <label>Admin Password</label>
+          <input id="login-pass" class="input" type="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary" type="submit">🔐 Super Admin ဝင်ရောက်မည်</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main Super Admin Dashboard -->
+  <main id="admin-app" class="sa-shell hidden">
+    <header class="hero-header">
+      <div class="hero-top">
+        <div class="brand-lockup">
+          <img src="/static/brand/logo.svg" alt="Exabyte Logo" class="brand-logo">
+          <div>
+            <div class="brand-title">Exabyte Super Admin Panel</div>
+            <div class="brand-tagline">သုံးစွဲသူအားလုံး၊ Key အားလုံး၊ အော်ဒါနှင့် ဆာဗာအားလုံး စီမံခန့်ခွဲရန်</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button id="btn-sa-refresh" class="btn btn-secondary btn-sm" style="width:auto;" type="button">🔄 Refresh</button>
+          <button id="btn-sa-logout" class="btn btn-danger btn-sm" style="width:auto;" type="button">🚪 ထွက်မည်</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Overview Stats -->
+    <div class="card" style="margin-top:12px;">
+      <div id="sa-stats-grid" class="stats-grid"></div>
+    </div>
+
+    <!-- Section Tabs -->
+    <nav class="sa-nav">
+      <button class="sa-nav-btn active" type="button" data-sec="users">👥 သုံးစွဲသူများ နှင့် Keys အားလုံး</button>
+      <button class="sa-nav-btn" type="button" data-sec="orders">💳 အော်ဒါ နှင့် Screenshot များ</button>
+      <button class="sa-nav-btn" type="button" data-sec="servers">🖧 3X-UI ဆာဗာများ (SG / Primary)</button>
+      <button class="sa-nav-btn" type="button" data-sec="settings">⚙️ ဆိုင် Settings & Broadcast</button>
+    </nav>
+
+    <!-- SECTION 1: USERS & ALL KEYS -->
+    <section id="sec-users" class="sa-sec">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+          <h3 style="margin:0;">👥 သုံးစွဲသူအားလုံး နှင့် Key အသေးစိတ် ပြင်ဆင်ရန်</h3>
+          <input id="user-search" class="input" type="search" placeholder="🔍 Telegram ID, @username, အမည် သို့မဟုတ် Key Email ရှာရန်..." style="max-width:360px;">
+        </div>
+        <div id="sa-users-list"></div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: ORDERS & SCREENSHOTS -->
+    <section id="sec-orders" class="sa-sec hidden">
+      <div class="card">
+        <h3 style="margin-top:0;">💳 အော်ဒါများ နှင့် ငွေလွှဲပြေစာ Screenshot စစ်ဆေးရန်</h3>
+        <div id="sa-orders-list"></div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: 3X-UI SERVERS -->
+    <section id="sec-servers" class="sa-sec hidden">
+      <div class="card">
+        <h3 style="margin-top:0;">🖧 ချိတ်ဆက်ထားသော 3X-UI ဆာဗာများ</h3>
+        <div id="sa-panels-list"></div>
+
+        <div class="lotus-divider" aria-hidden="true">◈</div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          <h4 style="margin:0;">➕ 3X-UI ဆာဗာအသစ် ထပ်ပေါင်းထည့်ရန်</h4>
+          <button id="btn-prefill-sg" class="btn btn-secondary btn-sm" style="width:auto;" type="button">
+            ⚡ Singapore (SG) Server (`sgsep.lhpvpn.online`) အချက်အလက် အလိုအလျောက်ဖြည့်မည်
+          </button>
+        </div>
+
+        <div class="sa-grid-2">
+          <div class="field">
+            <label>ဆာဗာအမည် (ဥပမာ Singapore (SG))</label>
+            <input id="p-name" class="input" type="text" value="Singapore (SG)">
+          </div>
+          <div class="field">
+            <label>SERVER_HOST (Key Link တွင် သုံးမည့် Domain/IP)</label>
+            <input id="p-host" class="input" type="text" value="sgsep.lhpvpn.online">
+          </div>
+        </div>
+        <div class="field">
+          <label>PANEL_BASE_URL (Secret Path ပါဝင်သော URL — `/panel/...` မပါရပါ)</label>
+          <input id="p-url" class="input" type="url" placeholder="https://sgsep.lhpvpn.online:8080/...">
+        </div>
+        <div class="sa-grid-2">
+          <div class="field">
+            <label>3X-UI Username</label>
+            <input id="p-user" class="input" type="text" value="exabyte">
+          </div>
+          <div class="field">
+            <label>3X-UI Password</label>
+            <input id="p-pass" class="input" type="password" value="exabyte">
+          </div>
+        </div>
+        <div class="sa-grid-2">
+          <div class="field">
+            <label>Inbound Remark (3X-UI ထဲရှိ Remark အတိအကျ)</label>
+            <input id="p-remark" class="input" type="text" value="exabytedigital_sg_bot">
+          </div>
+          <div class="field" style="display:flex;align-items:center;gap:10px;padding-top:22px;">
+            <input id="p-tls" type="checkbox" style="width:20px;height:20px;">
+            <label for="p-tls" style="margin:0;">Verify TLS Certificate (Self-signed ဖြစ်ပါက အမှန်ခြစ်ဖြုတ်ထားပါ)</label>
+          </div>
+        </div>
+        <button id="btn-add-panel" class="btn btn-primary" type="button">➕ 3X-UI ဆာဗာ ချိတ်ဆက်ပြီး Key များ ပေါင်းစပ်မည်</button>
+      </div>
+    </section>
+
+    <!-- SECTION 4: SETTINGS & BROADCAST -->
+    <section id="sec-settings" class="sa-sec hidden">
+      <div class="card">
+        <h3 style="margin-top:0;">⚙️ ဆိုင်အချက်အလက် ပြင်ဆင်ရန်</h3>
+        <div class="sa-grid-2">
+          <div class="field">
+            <label>KBZ Pay ဖုန်းနံပါတ်</label>
+            <input id="cfg-kbz-num" class="input" type="text">
+          </div>
+          <div class="field">
+            <label>KBZ Pay အကောင့်အမည်</label>
+            <input id="cfg-kbz-name" class="input" type="text">
+          </div>
+        </div>
+        <div class="sa-grid-2">
+          <div class="field">
+            <label>Support URL</label>
+            <input id="cfg-support" class="input" type="url">
+          </div>
+          <div class="field">
+            <label>ဆိုင် ဆောင်ပုဒ် (Tagline)</label>
+            <input id="cfg-tagline" class="input" type="text">
+          </div>
+        </div>
+        <div class="field" style="display:flex;align-items:center;gap:10px;">
+          <input id="cfg-maint" type="checkbox" style="width:20px;height:20px;">
+          <label for="cfg-maint" style="margin:0;">ပြုပြင်မှုစနစ် (Maintenance Mode) ဖွင့်ထားမည်</label>
+        </div>
+        <button id="btn-save-cfg" class="btn btn-primary btn-sm" type="button">💾 Settings သိမ်းဆည်းမည်</button>
+
+        <div class="lotus-divider" aria-hidden="true">◈</div>
+
+        <h4>✨ သုံးစွဲသူ အားလုံးထံ စာပို့ရန် (Broadcast)</h4>
+        <div class="field">
+          <textarea id="bcast-input" class="textarea" placeholder="ပို့လိုသော အကြောင်းကြားစာ ရိုက်ထည့်ပါ..."></textarea>
+        </div>
+        <button id="btn-send-bcast" class="btn btn-secondary btn-sm" type="button">📨 အားလုံးထံ စာပို့မည်</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal for Full Key Editing -->
+  <div id="edit-modal-wrap" class="sa-modal-backdrop hidden">
+    <div class="sa-modal">
+      <h3 id="em-title" style="margin-top:0;">✏️ Key အသေးစိတ် ပြင်ဆင်ရန်</h3>
+      <input id="em-key-id" type="hidden">
+      <div class="sa-grid-2">
+        <div class="field">
+          <label>လက်ကျန်ရက် အတိအကျ သတ်မှတ်ရန် (Days Left)</label>
+          <input id="em-days" class="input" type="number" min="0" max="3650">
+        </div>
+        <div class="field">
+          <label>Data Quota GB (0 = Unlimited)</label>
+          <input id="em-quota-gb" class="input" type="number" min="0" step="1">
+        </div>
+      </div>
+      <div class="sa-grid-2">
+        <div class="field">
+          <label>Key အမျိုးအစား (Kind)</label>
+          <select id="em-kind" class="input">
+            <option value="paid">Paid (ငွေပေး Plan)</option>
+            <option value="trial">Trial (အခမဲ့ စမ်းသပ်)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>သတ်မှတ်ထားသော ဆာဗာ (Server)</label>
+          <select id="em-panel-id" class="input"></select>
+        </div>
+      </div>
+      <div class="sa-grid-2">
+        <div class="field">
+          <label>ဆာဗာအားလုံး ပြောင်းသုံးခွင့် (Multi-Server)</label>
+          <select id="em-multi" class="input">
+            <option value="1">ခွင့်ပြုမည် (GB Shared Across Servers)</option>
+            <option value="0">ခွင့်မပြုပါ (Locked to 1 Server)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Key အခြေအနေ (Enabled / Suspended)</label>
+          <select id="em-enabled" class="input">
+            <option value="1">ဖွင့်ထားမည် (Active)</option>
+            <option value="0">ယာယီပိတ်ထားမည် (Suspended)</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:10px;">
+        <input id="em-reset-used" type="checkbox" style="width:20px;height:20px;">
+        <label for="em-reset-used" style="margin:0;">သုံးစွဲထားသော Data (Used Traffic) ကို 0 GB သို့ ပြန်ချမည်</label>
+      </div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button id="em-save-btn" class="btn btn-primary" type="button">💾 ပြင်ဆင်ချက် သိမ်းမည်</button>
+        <button id="em-close-btn" class="btn btn-secondary" type="button">ပိတ်မည်</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for Granting / Creating a New Key for User -->
+  <div id="grant-modal-wrap" class="sa-modal-backdrop hidden">
+    <div class="sa-modal">
+      <h3 id="gm-title" style="margin-top:0;">➕ Key အသစ်ထုတ်ပေးရန် / Plan ပေါင်းထည့်ရန်</h3>
+      <input id="gm-uid" type="hidden">
+      <div class="field">
+        <label>ပေးမည့် Plan ရွေးပါ</label>
+        <select id="gm-plan" class="input"></select>
+      </div>
+      <div class="field">
+        <label>ပုံစံ ရွေးပါ (Key အသစ် သို့မဟုတ် လက်ရှိ Key သက်တမ်းတိုး)</label>
+        <select id="gm-target" class="input"></select>
+      </div>
+      <div class="field">
+        <label>ဆာဗာ ရွေးပါ</label>
+        <select id="gm-panel" class="input"></select>
+      </div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button id="gm-save-btn" class="btn btn-primary" type="button">✨ အတည်ပြု ထုတ်ပေးမည်</button>
+        <button id="gm-close-btn" class="btn btn-secondary" type="button">ပိတ်မည်</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get("token") || params.get("admin_token") || "";
+      if (urlToken) {
+        try { localStorage.setItem("exabyte_admin_token", urlToken); } catch (_) {}
+      }
+
+      let state = {
+        token: urlToken || (function () {
+          try { return localStorage.getItem("exabyte_admin_token") || ""; } catch (_) { return ""; }
+        })(),
+        overview: null,
+        searchQuery: "",
+      };
+
+      function showToast(msg) {
+        const el = document.getElementById("toast");
+        el.textContent = msg;
+        el.classList.remove("hidden");
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.add("hidden"), 3000);
+      }
+
+      function fmtBytes(bytes) {
+        const gb = 1024 * 1024 * 1024;
+        if (bytes >= gb) return (bytes / gb).toFixed(2) + " GB";
+        return Math.round(bytes / (1024 * 1024)) + " MB";
+      }
+
+      async function api(path, opts) {
+        const options = opts || {};
+        const headers = { "Content-Type": "application/json" };
+        if (state.token) {
+          headers["X-Admin-Token"] = state.token;
+        }
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+          headers["X-Telegram-Init-Data"] = window.Telegram.WebApp.initData;
+        }
+        const resp = await fetch(path, {
+          method: options.method || "GET",
+          headers: headers,
+          body: options.body ? JSON.stringify(options.body) : undefined,
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          if (resp.status === 401 || resp.status === 403) {
+            showLogin();
+          }
+          throw new Error(data.detail || "Request failed");
+        }
+        return data;
+      }
+
+      function showLogin() {
+        document.getElementById("login-screen").classList.remove("hidden");
+        document.getElementById("admin-app").classList.add("hidden");
+      }
+
+      function showDashboard() {
+        document.getElementById("login-screen").classList.add("hidden");
+        document.getElementById("admin-app").classList.remove("hidden");
+      }
+
+      function panelNameById(pid) {
+        const panels = (state.overview && state.overview.panels) || [];
+        const found = panels.find((p) => Number(p.id) === Number(pid));
+        return found ? found.name + " (" + found.server_host + ")" : "Server 1 (Primary)";
+      }
+
+      async function loadOverview() {
+        try {
+          const data = await api("/api/admin/overview");
+          state.overview = data;
+          showDashboard();
+          renderStats(data.stats, (data.panels || []).length);
+          renderUsers();
+          renderOrders();
+          renderPanels();
+          renderSettings();
+        } catch (e) {
+          showLogin();
+        }
+      }
+
+      function renderStats(st, srvCount) {
+        document.getElementById("sa-stats-grid").innerHTML =
+          '<div class="stat-tile"><div class="stat-tile-num">' + st.total_users + '</div><div class="stat-tile-lbl">စုစုပေါင်း သုံးစွဲသူ</div></div>' +
+          '<div class="stat-tile"><div class="stat-tile-num">' + st.active_paid + '</div><div class="stat-tile-lbl">Paid Active Keys</div></div>' +
+          '<div class="stat-tile"><div class="stat-tile-num">' + st.active_trials + '</div><div class="stat-tile-lbl">Trial Active Keys</div></div>' +
+          '<div class="stat-tile"><div class="stat-tile-num">' + st.pending_orders + '</div><div class="stat-tile-lbl">စစ်ဆေးရန် အော်ဒါ</div></div>' +
+          '<div class="stat-tile"><div class="stat-tile-num">' + st.today_revenue_text + '</div><div class="stat-tile-lbl">ယနေ့ ဝင်ငွေ</div></div>' +
+          '<div class="stat-tile"><div class="stat-tile-num">' + st.month_revenue_text + '</div><div class="stat-tile-lbl">ယခုလ ဝင်ငွေ (' + srvCount + ' Servers)</div></div>';
+      }
+
+      function renderUsers() {
+        const list = document.getElementById("sa-users-list");
+        list.innerHTML = "";
+        const q = (state.searchQuery || "").toLowerCase().trim();
+        const users = ((state.overview && state.overview.users) || []).filter((u) => {
+          if (!q) return true;
+          const matchUser =
+            String(u.user_id).includes(q) ||
+            (u.username || "").toLowerCase().includes(q) ||
+            (u.first_name || "").toLowerCase().includes(q);
+          const matchKey = (u.keys || []).some((k) => (k.email || "").toLowerCase().includes(q));
+          return matchUser || matchKey;
+        });
+
+        if (!users.length) {
+          list.innerHTML = '<p style="color:var(--text-muted);">သုံးစွဲသူ မတွေ့ပါ။</p>';
+          return;
+        }
+
+        users.forEach((u) => {
+          const card = document.createElement("div");
+          card.className = "sa-user-card";
+          const keys = u.keys || [];
+
+          const top = document.createElement("div");
+          top.style.display = "flex";
+          top.style.justifyContent = "space-between";
+          top.style.alignItems = "flex-start";
+          top.style.flexWrap = "wrap";
+          top.style.gap = "8px";
+          top.innerHTML =
+            "<div>" +
+            '<div style="font-size:1.02rem;font-weight:700;">👤 ' +
+            (u.first_name || "User") +
+            " (<code>" + u.user_id + "</code>) • @" + u.username +
+            (u.banned ? ' <span class="badge badge-expired">🚫 BANNED</span>' : "") +
+            "</div>" +
+            '<div style="font-size:0.84rem;color:var(--text-muted);">စတင်သုံးသည့်ရက်: ' +
+            u.created_at + " • နောက်ဆုံးတွေ့ချိန်: " + u.last_seen_at +
+            " • အော်ဒါအရေအတွက်: <b>" + u.order_count + "</b> • Keys: <b>" + keys.length + " ခု</b></div>" +
+            "</div>";
+
+          const uBtns = document.createElement("div");
+          uBtns.className = "btn-row";
+          uBtns.style.marginTop = "0";
+
+          const btnGrant = document.createElement("button");
+          btnGrant.className = "btn btn-primary btn-sm";
+          btnGrant.style.width = "auto";
+          btnGrant.textContent = "➕ Key အသစ် / Plan ပေးမည်";
+          btnGrant.onclick = () => openGrantModal(u);
+          uBtns.appendChild(btnGrant);
+
+          const btnMsg = document.createElement("button");
+          btnMsg.className = "btn btn-secondary btn-sm";
+          btnMsg.style.width = "auto";
+          btnMsg.textContent = "✉️ စာပို့မည်";
+          btnMsg.onclick = async () => {
+            const txt = window.prompt("User " + u.user_id + " ထံ ပို့မည့်စာ ရိုက်ထည့်ပါ:");
+            if (!txt) return;
+            try {
+              const res = await api("/api/admin/users/" + u.user_id + "/action", {
+                method: "POST",
+                body: { action: "message", message: txt },
+              });
+              showToast(res.message);
+            } catch (e) {
+              showToast(e.message);
+            }
+          };
+          uBtns.appendChild(btnMsg);
+
+          const btnBan = document.createElement("button");
+          btnBan.className = "btn " + (u.banned ? "btn-jade" : "btn-danger") + " btn-sm";
+          btnBan.style.width = "auto";
+          btnBan.textContent = u.banned ? "✅ Unban" : "🚫 Ban";
+          btnBan.onclick = async () => {
+            try {
+              const res = await api("/api/admin/users/" + u.user_id + "/action", {
+                method: "POST",
+                body: { action: u.banned ? "unban" : "ban" },
+              });
+              showToast(res.message);
+              loadOverview();
+            } catch (e) {
+              showToast(e.message);
+            }
+          };
+          uBtns.appendChild(btnBan);
+
+          top.appendChild(uBtns);
+          card.appendChild(top);
+
+          if (!keys.length) {
+            const noK = document.createElement("div");
+            noK.style.marginTop = "8px";
+            noK.style.fontSize = "0.88rem";
+            noK.style.color = "var(--text-muted)";
+            noK.textContent = "🔑 လက်ရှိ Key မရှိသေးပါ။";
+            card.appendChild(noK);
+          }
+
+          keys.forEach((k, idx) => {
+            const kBox = document.createElement("div");
+            kBox.className = "sa-key-box";
+            const quotaLabel = k.unlimited
+              ? "♾️ Unlimited Data"
+              : fmtBytes(k.used_bytes) + " / " + fmtBytes(k.quota_bytes) + " (ကျန် " + fmtBytes(k.remaining_bytes) + ")";
+            const srvMode = k.multi_server ? "🌐 All Servers (Shared GB)" : "🔒 1 Server Only";
+
+            kBox.innerHTML =
+              '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">' +
+              "<div><b>🔑 Key #" + (idx + 1) + ": <code>" + k.email + "</code></b> " +
+              '<span class="sa-pill">' + (k.kind === "paid" ? "💳 Paid" : "⏳ Trial") + "</span>" +
+              '<span class="sa-pill">' + k.status.toUpperCase() + "</span>" +
+              '<span class="sa-pill">🖧 ' + panelNameById(k.panel_id) + "</span>" +
+              '<span class="sa-pill">' + srvMode + "</span></div>" +
+              '<div style="font-size:0.86rem;color:var(--text-muted);">သက်တမ်းကုန်ရက်: <b>' +
+              k.expiry_date + "</b> (" + k.days_left + " ရက် ကျန်)</div></div>" +
+              '<div style="margin-top:6px;font-size:0.9rem;">📊 Data သုံးစွဲမှု: <b>' + quotaLabel + "</b></div>" +
+              '<div class="mono-box" style="margin-top:6px;font-size:0.8rem;">' + k.link + "</div>";
+
+            const kRow = document.createElement("div");
+            kRow.className = "btn-row";
+
+            const bEdit = document.createElement("button");
+            bEdit.className = "btn btn-primary btn-sm";
+            bEdit.textContent = "✏️ အသေးစိတ် ပြင်မည် (Edit Everything)";
+            bEdit.onclick = () => openEditKeyModal(k);
+            kRow.appendChild(bEdit);
+
+            const bPlus7 = document.createElement("button");
+            bPlus7.className = "btn btn-secondary btn-sm";
+            bPlus7.textContent = "+7 ရက်";
+            bPlus7.onclick = () => quickEditKey(k.id, { add_days: 7 });
+            kRow.appendChild(bPlus7);
+
+            const bPlus30 = document.createElement("button");
+            bPlus30.className = "btn btn-secondary btn-sm";
+            bPlus30.textContent = "+30 ရက်";
+            bPlus30.onclick = () => quickEditKey(k.id, { add_days: 30 });
+            kRow.appendChild(bPlus30);
+
+            const bPlus100G = document.createElement("button");
+            bPlus100G.className = "btn btn-secondary btn-sm";
+            bPlus100G.textContent = "+100 GB";
+            bPlus100G.onclick = () => quickEditKey(k.id, { add_gb: 100 });
+            kRow.appendChild(bPlus100G);
+
+            const bToggle = document.createElement("button");
+            bToggle.className = "btn btn-secondary btn-sm";
+            bToggle.textContent = k.enabled ? "⏸️ Key ပိတ်မည်" : "▶️ Key ဖွင့်မည်";
+            bToggle.onclick = () => quickEditKey(k.id, { enabled: !k.enabled });
+            kRow.appendChild(bToggle);
+
+            const bDel = document.createElement("button");
+            bDel.className = "btn btn-danger btn-sm";
+            bDel.textContent = "🗑️ Key ဖျက်မည်";
+            bDel.onclick = async () => {
+              if (!window.confirm("Key " + k.email + " ကို အပြီးတိုင် ဖျက်မှာ သေချာပါသလား?")) return;
+              try {
+                const res = await api("/api/admin/keys/" + k.id, { method: "DELETE" });
+                showToast(res.message);
+                loadOverview();
+              } catch (e) {
+                showToast(e.message);
+              }
+            };
+            kRow.appendChild(bDel);
+
+            kBox.appendChild(kRow);
+            card.appendChild(kBox);
+          });
+
+          list.appendChild(card);
+        });
+      }
+
+      async function quickEditKey(keyId, body) {
+        try {
+          const res = await api("/api/admin/keys/" + keyId + "/edit", {
+            method: "POST",
+            body: body,
+          });
+          showToast(res.message);
+          loadOverview();
+        } catch (e) {
+          showToast(e.message);
+        }
+      }
+
+      function openEditKeyModal(k) {
+        document.getElementById("em-title").textContent = "✏️ Key ပြင်ဆင်ရန်: " + k.email;
+        document.getElementById("em-key-id").value = String(k.id);
+        document.getElementById("em-days").value = String(k.days_left);
+        const gbVal = k.unlimited ? 0 : Math.round(k.quota_bytes / (1024 * 1024 * 1024));
+        document.getElementById("em-quota-gb").value = String(gbVal);
+        document.getElementById("em-kind").value = k.kind;
+        document.getElementById("em-multi").value = k.multi_server ? "1" : "0";
+        document.getElementById("em-enabled").value = k.enabled ? "1" : "0";
+        document.getElementById("em-reset-used").checked = false;
+
+        const pSel = document.getElementById("em-panel-id");
+        pSel.innerHTML = "";
+        ((state.overview && state.overview.panels) || []).forEach((p) => {
+          const opt = document.createElement("option");
+          opt.value = String(p.id);
+          opt.textContent = p.name + " (" + p.server_host + ")";
+          pSel.appendChild(opt);
+        });
+        pSel.value = String(k.panel_id || 0);
+        document.getElementById("edit-modal-wrap").classList.remove("hidden");
+      }
+
+      function openGrantModal(u) {
+        document.getElementById("gm-title").textContent =
+          "➕ User " + u.user_id + " (@" + u.username + ") အတွက် Plan ထုတ်ပေးရန်";
+        document.getElementById("gm-uid").value = String(u.user_id);
+
+        const pSel = document.getElementById("gm-plan");
+        pSel.innerHTML = "";
+        ((state.overview && state.overview.plans) || []).forEach((pl) => {
+          const opt = document.createElement("option");
+          opt.value = pl.id;
+          opt.textContent = pl.name + " (" + pl.days + " ရက် — " + pl.price_text + ")";
+          pSel.appendChild(opt);
+        });
+
+        const tSel = document.getElementById("gm-target");
+        tSel.innerHTML = "";
+        const optNew = document.createElement("option");
+        optNew.value = "0";
+        optNew.textContent = "➕ Key အသစ် ထုတ်ပေးမည်";
+        tSel.appendChild(optNew);
+        (u.keys || []).forEach((k, idx) => {
+          const opt = document.createElement("option");
+          opt.value = String(k.id);
+          opt.textContent = "🔄 လက်ရှိ Key #" + (idx + 1) + " သက်တမ်းတိုးမည် (" + k.email + ")";
+          tSel.appendChild(opt);
+        });
+
+        const srvSel = document.getElementById("gm-panel");
+        srvSel.innerHTML = "";
+        ((state.overview && state.overview.panels) || []).forEach((p) => {
+          const opt = document.createElement("option");
+          opt.value = String(p.id);
+          opt.textContent = p.name + " (" + p.server_host + ")";
+          srvSel.appendChild(opt);
+        });
+
+        document.getElementById("grant-modal-wrap").classList.remove("hidden");
+      }
+
+      function renderOrders() {
+        const ordList = document.getElementById("sa-orders-list");
+        ordList.innerHTML = "";
+        const orders = (state.overview && state.overview.orders) || [];
+        if (!orders.length) {
+          ordList.innerHTML = '<p style="color:var(--text-muted);">အော်ဒါ မရှိသေးပါ။</p>';
+          return;
+        }
+        orders.forEach((o) => {
+          const box = document.createElement("div");
+          box.className = "sa-user-card";
+          const tokenQuery = state.token ? "?token=" + encodeURIComponent(state.token) : "";
+          const shotUrl = o.screenshot ? o.screenshot + tokenQuery : "";
+          const shotHtml = shotUrl
+            ? '<div style="margin:8px 0;"><a href="' + shotUrl + '" target="_blank" rel="noopener">' +
+              '<img src="' + shotUrl + '" alt="Payment Slip" style="max-height:200px;border-radius:10px;border:1px solid var(--border);"></a></div>'
+            : '<div style="font-size:0.85rem;color:var(--text-muted);">Screenshot မတင်ရသေးပါ</div>';
+
+          box.innerHTML =
+            "<div><b>အော်ဒါကုဒ်: <code>" + o.code + "</code></b> • User: <code>" + o.user_id + "</code> (@" + o.username + ") • အချိန်: " + o.created_at + "</div>" +
+            '<div style="font-size:0.9rem;color:var(--text-muted);margin-top:4px;">Package: <b>' + o.plan_id + "</b> (" + o.amount_text + ") • State: <b>" + o.state + "</b> • Key: <code>" + o.key_email + "</code></div>" +
+            shotHtml;
+
+          const row = document.createElement("div");
+          row.className = "btn-row";
+          if (o.state === "awaiting_review" || o.state === "pending_payment") {
+            const bPaid = document.createElement("button");
+            bPaid.className = "btn btn-jade btn-sm";
+            bPaid.textContent = "✅ Paid (အတည်ပြုမည်)";
+            bPaid.onclick = async () => {
+              try {
+                const res = await api("/api/admin/orders/" + o.code + "/approve", { method: "POST" });
+                showToast(res.message);
+                loadOverview();
+              } catch (e) { showToast(e.message); }
+            };
+            const bUnpaid = document.createElement("button");
+            bUnpaid.className = "btn btn-danger btn-sm";
+            bUnpaid.textContent = "❌ Unpaid (ငြင်းပယ်ပြီး Key ပိတ်မည်)";
+            bUnpaid.onclick = async () => {
+              const reason = window.prompt("ငြင်းပယ်သည့် အကြောင်းပြချက်:", "ငွေလွှဲပြေစာ အတည်မပြုနိုင်ပါ");
+              if (reason === null) return;
+              try {
+                const res = await api("/api/admin/orders/" + o.code + "/reject", {
+                  method: "POST",
+                  body: { reason: reason },
+                });
+                showToast(res.message);
+                loadOverview();
+              } catch (e) { showToast(e.message); }
+            };
+            row.appendChild(bPaid);
+            row.appendChild(bUnpaid);
+          }
+          box.appendChild(row);
+          ordList.appendChild(box);
+        });
+      }
+
+      function renderPanels() {
+        const pList = document.getElementById("sa-panels-list");
+        pList.innerHTML = "";
+        ((state.overview && state.overview.panels) || []).forEach((p) => {
+          const item = document.createElement("div");
+          item.className = "sa-key-box";
+          item.innerHTML =
+            "<div><b>🖧 " + p.name + (p.is_primary ? " (Primary Server)" : "") + "</b> — <code>" +
+            p.server_host + ":" + p.port + "</code> • Inbound: <code>" + p.inbound_remark +
+            "</code> (id=" + p.inbound_id + ") • Cipher: <code>" + p.method + "</code> • Status: <b>" +
+            (p.enabled ? "🟢 Active" : "🔴 Disabled") + "</b></div>";
+          if (!p.is_primary) {
+            const row = document.createElement("div");
+            row.className = "btn-row";
+            const tBtn = document.createElement("button");
+            tBtn.className = "btn btn-secondary btn-sm";
+            tBtn.textContent = p.enabled ? "⏸️ Disable" : "▶️ Enable";
+            tBtn.onclick = async () => {
+              await api("/api/admin/panels/" + p.id + "/toggle", {
+                method: "POST",
+                body: { enabled: !p.enabled },
+              });
+              loadOverview();
+            };
+            const dBtn = document.createElement("button");
+            dBtn.className = "btn btn-danger btn-sm";
+            dBtn.textContent = "🗑️ ဆာဗာ ဖျက်မည်";
+            dBtn.onclick = async () => {
+              if (!window.confirm(p.name + " ဆာဗာကို ဖျက်မှာ သေချာပါသလား?")) return;
+              await api("/api/admin/panels/" + p.id, { method: "DELETE" });
+              loadOverview();
+            };
+            row.appendChild(tBtn);
+            row.appendChild(dBtn);
+            item.appendChild(row);
+          }
+          pList.appendChild(item);
+        });
+      }
+
+      function renderSettings() {
+        const stCfg = (state.overview && state.overview.store) || {};
+        document.getElementById("cfg-kbz-num").value = stCfg.kbz_number || "";
+        document.getElementById("cfg-kbz-name").value = stCfg.kbz_name || "";
+        document.getElementById("cfg-support").value = stCfg.support_url || "";
+        document.getElementById("cfg-tagline").value = stCfg.tagline || "";
+        document.getElementById("cfg-maint").checked = Boolean(stCfg.maintenance);
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll(".sa-nav-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const sec = btn.getAttribute("data-sec");
+            document.querySelectorAll(".sa-nav-btn").forEach((b) => b.classList.toggle("active", b === btn));
+            document.querySelectorAll(".sa-sec").forEach((s) => s.classList.toggle("hidden", s.id !== "sec-" + sec));
+          });
+        });
+
+        document.getElementById("user-search").addEventListener("input", (e) => {
+          state.searchQuery = e.target.value;
+          renderUsers();
+        });
+
+        document.getElementById("login-form").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            const res = await api("/api/admin/login", {
+              method: "POST",
+              body: {
+                username: document.getElementById("login-user").value.trim(),
+                password: document.getElementById("login-pass").value,
+              },
+            });
+            state.token = res.token;
+            try { localStorage.setItem("exabyte_admin_token", res.token); } catch (_) {}
+            showToast("✅ Super Admin ဝင်ရောက်ပြီးပါပြီ");
+            loadOverview();
+          } catch (err) {
+            showToast(err.message);
+          }
+        });
+
+        document.getElementById("btn-sa-refresh").addEventListener("click", () => loadOverview());
+        document.getElementById("btn-sa-logout").addEventListener("click", () => {
+          state.token = "";
+          try { localStorage.removeItem("exabyte_admin_token"); } catch (_) {}
+          showLogin();
+        });
+
+        document.getElementById("em-close-btn").addEventListener("click", () => {
+          document.getElementById("edit-modal-wrap").classList.add("hidden");
+        });
+
+        document.getElementById("em-save-btn").addEventListener("click", async () => {
+          const kid = Number(document.getElementById("em-key-id").value);
+          try {
+            const res = await api("/api/admin/keys/" + kid + "/edit", {
+              method: "POST",
+              body: {
+                set_days: Number(document.getElementById("em-days").value),
+                set_quota_gb: Number(document.getElementById("em-quota-gb").value),
+                kind: document.getElementById("em-kind").value,
+                panel_id: Number(document.getElementById("em-panel-id").value),
+                multi_server: document.getElementById("em-multi").value === "1",
+                enabled: document.getElementById("em-enabled").value === "1",
+                reset_used: document.getElementById("em-reset-used").checked,
+              },
+            });
+            document.getElementById("edit-modal-wrap").classList.add("hidden");
+            showToast(res.message);
+            loadOverview();
+          } catch (e) {
+            showToast(e.message);
+          }
+        });
+
+        document.getElementById("gm-close-btn").addEventListener("click", () => {
+          document.getElementById("grant-modal-wrap").classList.add("hidden");
+        });
+
+        document.getElementById("gm-save-btn").addEventListener("click", async () => {
+          const uid = Number(document.getElementById("gm-uid").value);
+          try {
+            const res = await api("/api/admin/users/" + uid + "/action", {
+              method: "POST",
+              body: {
+                action: "grant",
+                plan_id: document.getElementById("gm-plan").value,
+                target_sub_id: Number(document.getElementById("gm-target").value),
+                panel_id: Number(document.getElementById("gm-panel").value),
+              },
+            });
+            document.getElementById("grant-modal-wrap").classList.add("hidden");
+            showToast(res.message);
+            loadOverview();
+          } catch (e) {
+            showToast(e.message);
+          }
+        });
+
+        document.getElementById("btn-prefill-sg").addEventListener("click", () => {
+          document.getElementById("p-name").value = "Singapore (SG)";
+          document.getElementById("p-host").value = "sgsep.lhpvpn.online";
+          document.getElementById("p-url").value = "https://sgsep.lhpvpn.online:8080/" + "DV5nsBNEH" + "PECsIN95s";
+          document.getElementById("p-remark").value = "exabytedigital_sg_bot";
+          document.getElementById("p-tls").checked = false;
+          showToast("⚡ Singapore (SG) ဆာဗာ အချက်အလက်များ ဖြည့်ပေးပြီးပါပြီ");
+        });
+
+        document.getElementById("btn-add-panel").addEventListener("click", async () => {
+          try {
+            const res = await api("/api/admin/panels", {
+              method: "POST",
+              body: {
+                name: document.getElementById("p-name").value.trim(),
+                base_url: document.getElementById("p-url").value.trim(),
+                server_host: document.getElementById("p-host").value.trim(),
+                username: document.getElementById("p-user").value.trim(),
+                password: document.getElementById("p-pass").value,
+                inbound_remark: document.getElementById("p-remark").value.trim() || "exabytedigital_sg_bot",
+                verify_tls: document.getElementById("p-tls").checked,
+              },
+            });
+            showToast(res.message);
+            loadOverview();
+          } catch (e) {
+            showToast(e.message);
+          }
+        });
+
+        document.getElementById("btn-save-cfg").addEventListener("click", async () => {
+          try {
+            const res = await api("/api/admin/settings", {
+              method: "POST",
+              body: {
+                kbz_number: document.getElementById("cfg-kbz-num").value,
+                kbz_name: document.getElementById("cfg-kbz-name").value,
+                support_url: document.getElementById("cfg-support").value,
+                tagline: document.getElementById("cfg-tagline").value,
+                maintenance: document.getElementById("cfg-maint").checked,
+              },
+            });
+            showToast(res.message);
+          } catch (e) {
+            showToast(e.message);
+          }
+        });
+
+        document.getElementById("btn-send-bcast").addEventListener("click", async () => {
+          const txt = document.getElementById("bcast-input").value.trim();
+          if (!txt) return;
+          try {
+            const res = await api("/api/admin/broadcast", { method: "POST", body: { text: txt } });
+            document.getElementById("bcast-input").value = "";
+            showToast(res.message);
+          } catch (e) {
+            showToast(e.message);
+          }
+        });
+
+        loadOverview();
+      });
+    })();
+  </script>
+</body>
+</html>
