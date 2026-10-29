@@ -17,7 +17,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .. import packages as P
-from ..bot.messages import admin_order_review_kb, branded, status_label
+from ..bot.messages import (
+    admin_order_review_kb,
+    back_home_kb,
+    branded,
+    format_key_extended_message,
+    format_order_approved_message,
+    status_label,
+)
+from ..bot.user import send_key_card
 from ..config import Settings, check_dev_mode
 from ..service import Service, ServiceError
 from ..strings import S, t
@@ -341,12 +349,27 @@ def create_webapp(
         # Hash image bytes so duplicate screenshot uploads are caught across WebApp & Bot.
         digest = hashlib.sha256(img_bytes).hexdigest()[:24]
         unique_id = f"web-{digest}"
+        had_key_before = (await svc.get_key(user.id)) is not None
         try:
             order = await svc.attach_screenshot(user.id, code, unique_id, unique_id)
         except ServiceError as e:
             raise HTTPException(status_code=400, detail=e.message()) from None
 
         kv = await svc.get_key(user.id)
+        if bot is not None and kv is not None:
+            with contextlib.suppress(Exception):
+                if had_key_before:
+                    await bot.send_message(
+                        user.id,
+                        format_key_extended_message(order, kv, svc.now()),
+                        parse_mode="HTML",
+                        reply_markup=back_home_kb(),
+                    )
+                else:
+                    intro = t("order_instant_key_intro", code=order.code, plan_name=order.plan.name)
+                    await send_key_card(
+                        bot, user.id, kv, svc.now(), intro=intro, svc=svc, settings=settings
+                    )
         if bot is not None and settings.admin_ids:
             uname = f"@{user.username}" if user.username else "-"
             caption = branded(
@@ -514,6 +537,14 @@ def create_webapp(
             raise HTTPException(status_code=400, detail=e.message()) from None
         except PanelUnavailable:
             raise HTTPException(status_code=503, detail=t("panel_down")) from None
+        if bot is not None and not res.already and res.key is not None:
+            with contextlib.suppress(Exception):
+                await bot.send_message(
+                    res.order.user_id,
+                    format_order_approved_message(res.order, res.key, svc.now()),
+                    parse_mode="HTML",
+                    reply_markup=back_home_kb(),
+                )
         return {"message": t("adm_action_done"), "state": res.order.state}
 
     @app.post("/api/admin/orders/{code}/reject")

@@ -43,6 +43,8 @@ def format_key_message(
     extra_servers: list[dict[str, str]] | None = None,
     sub_url: str | None = None,
 ) -> str:
+    void_sub = sub_url
+    del void_sub
     body = t(
         "key_card",
         kind=t("kind_paid" if kv.kind == "paid" else "kind_trial"),
@@ -57,11 +59,34 @@ def format_key_message(
             for s in extra_servers[1:]
         )
         body += "\n" + t("extra_servers_section", servers=srv_lines)
-    if sub_url:
-        body += t("sub_link_section", sub_url=escape(sub_url))
     if intro:
-        body = f"{intro}\n\n{body}"
+        body = f"{intro}\n{body}"
     return branded(body)
+
+
+def format_key_extended_message(order: Order, kv: KeyView, now: datetime) -> str:
+    return branded(
+        t(
+            "order_key_extended",
+            code=order.code,
+            plan_name=order.plan.name,
+            days=order.plan.days,
+            expiry_date=fmt_date(kv.expiry_ms),
+            days_left=days_left(kv.expiry_ms, now),
+        )
+    )
+
+
+def format_order_approved_message(order: Order, kv: KeyView, now: datetime) -> str:
+    return branded(
+        t(
+            "order_approved_card",
+            plan_name=order.plan.name,
+            days=order.plan.days,
+            expiry_date=fmt_date(kv.expiry_ms),
+            days_left=days_left(kv.expiry_ms, now),
+        )
+    )
 
 
 def format_usage_message(kv: KeyView, now: datetime) -> str:
@@ -158,13 +183,11 @@ def back_home_kb() -> InlineKeyboardMarkup:
 
 
 def key_kb(kv: KeyView) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = []
-    if kv.kind == "paid" and kv.status == "active":
-        rows.append([InlineKeyboardButton(text=t("btn_regen_key"), callback_data="key:regen")])
-    rows.extend([
+    del kv
+    rows: list[list[InlineKeyboardButton]] = [
         [InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide")],
         [InlineKeyboardButton(text=t("back"), callback_data="nav:home")],
-    ])
+    ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

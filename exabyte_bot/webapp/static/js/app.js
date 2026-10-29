@@ -305,37 +305,14 @@
     });
 
     const subWrap = document.getElementById("key-sub-wrap");
-    const subBox = document.getElementById("key-sub-box");
-    if (st.sub_url) {
-      subWrap.classList.remove("hidden");
-      subBox.textContent = st.sub_url;
-      subBox.onclick = () => copyText(st.sub_url, "Subscription Link");
-      document.getElementById("btn-copy-sub").onclick = () =>
-        copyText(st.sub_url, "Subscription Link");
-    } else {
+    if (subWrap) {
       subWrap.classList.add("hidden");
     }
 
-    const qrImg = document.getElementById("key-qr-img");
-    const authQ = tg && tg.initData ? "&_t=" + Date.now() : "?_t=" + Date.now();
-    // Fetch QR with auth header so it works inside Telegram WebApp
-    fetch("/api/key/qr?server=0", {
-      headers: Object.assign(
-        {},
-        tg && tg.initData ? { "X-Telegram-Init-Data": tg.initData } : {},
-        state.devAdmin ? { "X-Dev-Admin": "1" } : {}
-      ),
-    })
-      .then((r) => (r.ok ? r.blob() : null))
-      .then((blob) => {
-        if (blob) qrImg.src = URL.createObjectURL(blob);
-      })
-      .catch(() => {
-        void authQ;
-      });
-
     const regenBtn = document.getElementById("btn-regen-key");
-    regenBtn.classList.toggle("hidden", !(st.kind === "paid" && st.status === "active"));
+    if (regenBtn) {
+      regenBtn.classList.add("hidden");
+    }
   }
 
   function renderPlans(boot) {

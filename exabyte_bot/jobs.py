@@ -10,8 +10,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 
-from .bot.messages import back_home_kb, branded
-from .bot.user import send_key_card
+from .bot.messages import back_home_kb, branded, format_order_approved_message
 from .config import Settings
 from .service import KeyView, Service, ServiceError
 from .strings import t
@@ -66,8 +65,11 @@ async def retry_queued_approvals(svc: Service, bot: Bot) -> int:
         done += 1
         if not res.already and res.key is not None:
             with contextlib.suppress(TelegramForbiddenError):
-                await send_key_card(
-                    bot, res.order.user_id, res.key, svc.now(), intro=t("order_approved")
+                await bot.send_message(
+                    res.order.user_id,
+                    format_order_approved_message(res.order, res.key, svc.now()),
+                    parse_mode="HTML",
+                    reply_markup=back_home_kb(),
                 )
             with contextlib.suppress(Exception):
                 await bot.send_message(

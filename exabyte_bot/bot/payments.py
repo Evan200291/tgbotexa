@@ -19,6 +19,7 @@ from .messages import (
     admin_order_review_kb,
     back_home_kb,
     branded,
+    format_key_extended_message,
     format_order_message,
     format_plans_message,
     order_created_kb,
@@ -123,6 +124,7 @@ def build_payments_router() -> Router:
             code = open_ord.code
 
         best_photo = msg.photo[-1]
+        had_key_before = (await svc.get_key(uid)) is not None
         try:
             order = await svc.attach_screenshot(
                 uid, code, best_photo.file_id, best_photo.file_unique_id
@@ -143,10 +145,17 @@ def build_payments_router() -> Router:
         await state.clear()
         kv = await svc.get_key(uid)
         if kv is not None:
-            intro = t("order_instant_key_intro", code=order.code, plan_name=order.plan.name)
-            await send_key_card(
-                bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc, settings=settings
-            )
+            if had_key_before:
+                await msg.answer(
+                    format_key_extended_message(order, kv, svc.now()),
+                    parse_mode="HTML",
+                    reply_markup=back_home_kb(),
+                )
+            else:
+                intro = t("order_instant_key_intro", code=order.code, plan_name=order.plan.name)
+                await send_key_card(
+                    bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc, settings=settings
+                )
         else:
             await msg.answer(
                 branded(t("order_received_wait", code=order.code)),

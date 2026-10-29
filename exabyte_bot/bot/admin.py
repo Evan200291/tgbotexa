@@ -25,7 +25,13 @@ from ..service import KeyView, Service, ServiceError
 from ..strings import t
 from ..util import fmt_bytes, fmt_date, fmt_mmk
 from ..xui import PanelUnavailable
-from .messages import admin_order_review_kb, branded, status_label
+from .messages import (
+    admin_order_review_kb,
+    back_home_kb,
+    branded,
+    format_order_approved_message,
+    status_label,
+)
 from .payments import CODE_RE
 from .user import send_key_card
 
@@ -268,8 +274,11 @@ def build_admin_router() -> Router:
         await cb.answer(t("adm_action_done"))
         if not res.already and res.key is not None:
             try:
-                await send_key_card(
-                    bot, res.order.user_id, res.key, svc.now(), intro=t("order_approved")
+                await bot.send_message(
+                    res.order.user_id,
+                    format_order_approved_message(res.order, res.key, svc.now()),
+                    parse_mode="HTML",
+                    reply_markup=back_home_kb(),
                 )
             except TelegramForbiddenError:
                 await svc.mark_blocked(res.order.user_id)
