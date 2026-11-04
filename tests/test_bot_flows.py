@@ -183,7 +183,13 @@ async def test_start_help_myid_and_menus(svc: Service, tmp_path):
     await tap(USER, "nav:guide")
     assert "ထည့်သွင်းနည်း" in session.last_text(USER)
     for plat, word in [("android", "Android"), ("ios", "iPhone"), ("desktop", "Windows")]:
+        before_count = len(session.sent_to(USER))
         await tap(USER, f"guide:{plat}")
+        recent = session.sent_to(USER)[before_count:]
+        photos = [c for c in recent if isinstance(c, SendPhoto)]
+        assert len(photos) == 4
+        assert "1️⃣" in (photos[0].caption or "")
+        assert "4️⃣" in (photos[3].caption or "")
         assert word in session.last_text(USER)
 
     await tap(USER, "nav:support")

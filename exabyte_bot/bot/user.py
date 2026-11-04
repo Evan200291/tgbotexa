@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, FSInputFile, Message
 
 from .. import packages as P
 from ..config import Settings
@@ -35,6 +36,13 @@ GUIDE_KEYS = {
     "ios": "guide_ios",
     "desktop": "guide_desktop",
 }
+GUIDE_INSTALL_KEYS = {
+    "android": "guide_install_android",
+    "ios": "guide_install_ios",
+    "desktop": "guide_install_desktop",
+}
+GUIDE_ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets" / "guides"
+_GUIDE_FILE_ID_CACHE: dict[int, str] = {}
 
 
 async def send_key_card(
@@ -301,6 +309,26 @@ def build_user_router() -> Router:
         if not str_key:
             return
         chat_id = cb.message.chat.id if cb.message else cb.from_user.id
+        install_key = GUIDE_INSTALL_KEYS.get(platform, "guide_install_android")
+        step_captions = [
+            t("guide_step1"),
+            t("guide_step2", install=t(install_key)),
+            t("guide_step3"),
+            t("guide_step4"),
+        ]
+        for idx, caption in enumerate(step_captions, start=1):
+            img_path = GUIDE_ASSETS_DIR / f"step{idx}.jpg"
+            if not img_path.is_file():
+                continue
+            photo_ref: str | FSInputFile = _GUIDE_FILE_ID_CACHE.get(idx) or FSInputFile(img_path)
+            sent = await bot.send_photo(
+                chat_id=chat_id,
+                photo=photo_ref,
+                caption=branded(caption),
+                parse_mode="HTML",
+            )
+            if sent.photo:
+                _GUIDE_FILE_ID_CACHE[idx] = sent.photo[-1].file_id
         await bot.send_message(
             chat_id, branded(t(str_key)), parse_mode="HTML", reply_markup=guide_detail_kb()
         )

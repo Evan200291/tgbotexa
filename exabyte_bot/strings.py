@@ -28,17 +28,17 @@ S: dict[str, str] = {
     # --- main menu & commands ---
     "welcome_body": (
         "🛡️ <b>လုံခြုံ မြန်ဆန်သော မြန်မာ VPN ဝန်ဆောင်မှုမှ ကြိုဆိုပါသည်!</b>\n"
-        "• <b>အခမဲ့ စမ်းသပ်:</b> 5 GB (7 ရက်)\n"
+        "• <b>အပတ်စဉ် အခမဲ့ စမ်းသပ်:</b> 5 GB (7 ရက်)\n"
         "• <b>Unlimited Plan:</b> 1 လ 5,000 Ks • 3 လ 14,500 Ks • 6 လ 29,000 Ks\n"
         "• <b>GB Data Plan (Server အားလုံးသုံး):</b> 100 GB • 300 GB • 600 GB\n"
         "အောက်ပါ မီနူးခလုတ်များကို နှိပ်၍ ချက်ချင်း ရယူအသုံးပြုနိုင်ပါသည်။"
     ),
     "help_body": (
         "🛡️ <b>အသုံးပြုပုံ အကျဉ်းချုပ်</b>\n\n"
-        "• <b>အခမဲ့ စမ်းသပ်</b> — 5 GB (7 ရက်) အခမဲ့ ရယူနိုင်ပါသည်။\n"
+        "• <b>အခမဲ့ စမ်းသပ်</b> — အပတ်စဉ် 5 GB (7 ရက်) အခမဲ့ ရယူနိုင်ပါသည်။\n"
         "• <b>Plan ဝယ်မည်</b> — KBZ Pay ဖြင့် ငွေလွှဲပြီး Screenshot ပို့ရုံဖြင့် ဝယ်ယူနိုင်ပါသည်။\n"
         "• <b>ကျွန်ုပ်၏ Key / Data</b> — Key Link၊ လက်ကျန် Data နှင့် သက်တမ်းကို ကြည့်ရှုနိုင်ပါသည်။\n"
-        "• <b>ထည့်သွင်းနည်း</b> — ဖုန်းနှင့် ကွန်ပျူတာအတွက် အဆင့်ဆင့် လမ်းညွှန်။\n\n"
+        "• <b>ထည့်သွင်းနည်း</b> — ဖုန်းနှင့် ကွန်ပျူတာအတွက် ပုံနှင့်တကွ အဆင့်ဆင့် လမ်းညွှန်။\n\n"
         "Commands: /start • /myid • /help"
     ),
     "myid_body": "🔑 သင့် Telegram ID: <code>{user_id}</code>",
@@ -171,6 +171,34 @@ S: dict[str, str] = {
     "btn_guide_android": "📱 Android",
     "btn_guide_ios": "🍎 iPhone / iPad (iOS)",
     "btn_guide_desktop": "💻 Windows / Mac",
+    "guide_install_android": "Play Store တွင် <b>Outline</b> ဟုရှာ၍ Install လုပ်ပါ။",
+    "guide_install_ios": "App Store တွင် <b>Outline</b> ဟုရှာ၍ Install လုပ်ပါ။",
+    "guide_install_desktop": "<b>getoutline.org</b> မှ <b>Outline Client</b> ကို Download ဆွဲ၍ Install လုပ်ပါ။",
+    "guide_step1": (
+        "1️⃣ <b>Key ကို Copy ကူးပါ</b>\n"
+        "Bot ပို့ပေးထားသော <code>ss://...</code> Key Link ကို တစ်ချက်နှိပ်ပါ။\n"
+        "<i>Copied to clipboard</i> ပေါ်လာလျှင် ကူးပြီးပါပြီ။\n"
+        "(Key ကြည့်ရန် 🔑 ကျွန်ုပ်၏ Key / Data ကို နှိပ်ပါ)"
+    ),
+    "guide_step2": (
+        "2️⃣ <b>Outline App ဖွင့်ပြီး ＋ နှိပ်ပါ</b>\n"
+        "{install}\n"
+        "App ညာဘက် အပေါ်ထောင့်ရှိ <b>＋</b> ကို နှိပ်ပါ။"
+    ),
+    "guide_step3": (
+        "3️⃣ <b>ADD SERVER နှိပ်ပါ</b>\n"
+        "Outline က ကူးထားသော Key ကို အလိုအလျောက် ဖတ်ပေးပါမည်။\n"
+        "မပေါ်လာပါက အကွက်ထဲသို့ Key ကို Paste လုပ်ပြီး <b>ADD SERVER</b> နှိပ်ပါ။"
+    ),
+    "guide_step4": (
+        "4️⃣ <b>CONNECT နှိပ်ပါ</b>\n"
+        "VPN ခွင့်ပြုချက် တောင်းလာလျှင် <b>OK / Allow</b> နှိပ်ပါ။\n"
+        "<b>Connected</b> ပေါ်လာလျှင် အသုံးပြုနိုင်ပါပြီ ✅"
+    ),
+    "guide_done": (
+        "✅ <b>{platform} — ထည့်သွင်းပြီးပါပြီ!</b>\n"
+        "အပေါ်က ပုံ (၄) ပုံအတိုင်း လုပ်ဆောင်ပါ။ အခက်အခဲရှိပါက 💬 Support ကို ဆက်သွယ်ပါ။"
+    ),
     "guide_android": (
         "📱 <b>Android အတွက် ထည့်သွင်းနည်း</b>\n\n"
         "အကြံပြု App များ: <b>Outline</b>, <b>Hiddify</b>, <b>v2rayNG</b>, <b>Shadowsocks</b>\n\n"
