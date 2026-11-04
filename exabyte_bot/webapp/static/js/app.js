@@ -392,10 +392,17 @@
       document.getElementById("co-plan").textContent = ord.plan_name + " (" + ord.days + " ရက်)";
       document.getElementById("co-amount").textContent = ord.amount_text;
       document.getElementById("co-code").textContent = ord.code;
+      const payNum = store.kbz_number || "09755100121";
+      const payName = store.kbz_name || "Khin Myo Lwin";
+      const waveEl = document.getElementById("co-wave-num");
+      if (waveEl) {
+        waveEl.textContent = "╰─ wave " + payNum + "  🔸  " + payName;
+        waveEl.onclick = () => copyText(payNum, "Wave နံပါတ်");
+      }
       const numEl = document.getElementById("co-kbz-num");
-      numEl.textContent = store.kbz_number || "09688220563";
-      numEl.onclick = () => copyText(numEl.textContent, "KBZ Pay နံပါတ်");
-      document.getElementById("co-kbz-name").textContent = store.kbz_name || "Exabyte Store";
+      numEl.textContent = "╰─ k pay " + payNum + "  🔸  " + payName;
+      numEl.onclick = () => copyText(payNum, "K Pay နံပါတ်");
+      document.getElementById("co-kbz-name").textContent = payName;
     } else {
       coCard.classList.add("hidden");
     }

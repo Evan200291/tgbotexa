@@ -34,8 +34,8 @@ class Settings(BaseSettings):
     bot_domain: str = "tgbot.lhpvpn.online"
     support_url: str = "https://t.me/Exabytedigitals"
 
-    kbz_number: str = ""
-    kbz_name: str = ""
+    kbz_number: str = "09755100121"
+    kbz_name: str = "Khin Myo Lwin"
 
     data_dir: Path = Path("./data")
     environment: Literal["development", "production"] = "production"
@@ -55,6 +55,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _safety(self) -> Settings:
+        if not self.kbz_number or self.kbz_number == "09688220563":
+            self.kbz_number = "09755100121"
+        if not self.kbz_name or self.kbz_name == "Exabyte Store":
+            self.kbz_name = "Khin Myo Lwin"
         check_dev_mode(self)
         return self
 
