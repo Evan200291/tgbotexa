@@ -302,13 +302,14 @@ def build_user_router() -> Router:
         )
 
     @r.callback_query(F.data.startswith("guide:"))
-    async def cb_guide_platform(cb: CallbackQuery, bot: Bot) -> None:
+    async def cb_guide_platform(cb: CallbackQuery, bot: Bot, svc: Service) -> None:
         await cb.answer()
         platform = (cb.data or "").split(":", 1)[1]
         str_key = GUIDE_KEYS.get(platform)
         if not str_key:
             return
         chat_id = cb.message.chat.id if cb.message else cb.from_user.id
+        await bot.send_chat_action(chat_id=chat_id, action="upload_photo")
         install_key = GUIDE_INSTALL_KEYS.get(platform, "guide_install_android")
         step_captions = [
             t("guide_step1"),
@@ -320,7 +321,13 @@ def build_user_router() -> Router:
             img_path = GUIDE_ASSETS_DIR / f"step{idx}.jpg"
             if not img_path.is_file():
                 continue
-            photo_ref: str | FSInputFile = _GUIDE_FILE_ID_CACHE.get(idx) or FSInputFile(img_path)
+            cached_fid = _GUIDE_FILE_ID_CACHE.get(idx)
+            if not cached_fid:
+                cached_fid = await svc.db.get_setting(f"guide_fid_{idx}")
+                if cached_fid:
+                    _GUIDE_FILE_ID_CACHE[idx] = cached_fid
+
+            photo_ref: str | FSInputFile = cached_fid or FSInputFile(img_path)
             sent = await bot.send_photo(
                 chat_id=chat_id,
                 photo=photo_ref,
@@ -328,7 +335,11 @@ def build_user_router() -> Router:
                 parse_mode="HTML",
             )
             if sent.photo:
-                _GUIDE_FILE_ID_CACHE[idx] = sent.photo[-1].file_id
+                new_fid = sent.photo[-1].file_id
+                if _GUIDE_FILE_ID_CACHE.get(idx) != new_fid:
+                    _GUIDE_FILE_ID_CACHE[idx] = new_fid
+                    await svc.db.set_setting(f"guide_fid_{idx}", new_fid)
+
         await bot.send_message(
             chat_id, branded(t(str_key)), parse_mode="HTML", reply_markup=guide_detail_kb()
         )

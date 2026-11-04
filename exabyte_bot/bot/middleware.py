@@ -2,18 +2,77 @@
 
 from __future__ import annotations
 
+import asyncio
+import html
+import logging
 import time
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from aiogram import BaseMiddleware
-from aiogram.types import CallbackQuery, Message, TelegramObject
+from aiogram import BaseMiddleware, Bot
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    TelegramObject,
+)
 
 from ..config import Settings
 from ..service import Service
 from ..strings import t
 from .messages import branded
+
+log = logging.getLogger(__name__)
+
+
+async def notify_admins_new_user(
+    bot: Bot,
+    svc: Service,
+    settings: Settings,
+    tg_id: int,
+    full_name: str | None,
+    username: str | None,
+) -> None:
+    if not settings.admin_ids or settings.is_admin(tg_id):
+        return
+    try:
+        total_row = await svc.db.fetchone("SELECT COUNT(*) AS c FROM users")
+        total = int(total_row["c"]) if total_row else 1
+        uname = f"@{username}" if username else "မရှိပါ (None)"
+        name = html.escape(full_name or "အမည်မသိ")
+        now_str = svc.now().strftime("%Y-%m-%d %I:%M %p")
+        text = branded(
+            f"🔔 <b>အသုံးပြုသူအသစ် စတင်အသုံးပြုပါသည်!</b> (New User Alert)\n\n"
+            f"👤 <b>အမည်:</b> {name}\n"
+            f"🆔 <b>User ID:</b> <code>{tg_id}</code>\n"
+            f"📱 <b>Username:</b> {uname}\n"
+            f"👥 <b>စုစုပေါင်းအသုံးပြုသူ:</b> {total} ယောက်\n"
+            f"⏰ <b>အချိန်:</b> {now_str}"
+        )
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="👤 Profile ကြည့်ရန်",
+                        url=f"tg://user?id={tg_id}",
+                    )
+                ]
+            ]
+        )
+        for aid in settings.admin_ids:
+            try:
+                await bot.send_message(
+                    chat_id=aid,
+                    text=text,
+                    parse_mode="HTML",
+                    reply_markup=kb,
+                )
+            except Exception as ex:
+                log.warning("Failed to alert admin %s about new user %s: %s", aid, tg_id, ex)
+    except Exception as err:
+        log.warning("Error in notify_admins_new_user: %s", err)
 
 
 class GuardMiddleware(BaseMiddleware):
@@ -46,7 +105,20 @@ class GuardMiddleware(BaseMiddleware):
                 return None
             self._last_ts[uid] = now
 
-        await self.svc.ensure_user(uid, user.username, user.first_name)
+        is_new = await self.svc.ensure_user(uid, user.username, user.first_name)
+        if is_new and not is_admin and self.settings.admin_ids:
+            b: Bot | None = data.get("bot") or getattr(event, "bot", None)
+            if b is not None:
+                asyncio.create_task(
+                    notify_admins_new_user(
+                        b,
+                        self.svc,
+                        self.settings,
+                        uid,
+                        user.full_name,
+                        user.username,
+                    )
+                )
 
         if not is_admin:
             if await self.svc.is_banned(uid):

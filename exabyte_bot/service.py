@@ -324,8 +324,10 @@ class Service:
 
     # ----- users
     async def ensure_user(self, tg_id: int, username: str | None = None,
-                          first_name: str | None = None) -> None:
+                          first_name: str | None = None) -> bool:
         now = self._now_ms()
+        row = await self.db.fetchone("SELECT 1 FROM users WHERE telegram_id=?", (tg_id,))
+        is_new = row is None
         await self.db.execute(
             "INSERT INTO users(telegram_id, username, first_name, created_at, last_seen_at) "
             "VALUES (?,?,?,?,?) ON CONFLICT(telegram_id) DO UPDATE SET "
@@ -333,6 +335,7 @@ class Service:
             "last_seen_at=excluded.last_seen_at, blocked_bot=0",
             (tg_id, username, first_name, now, now),
         )
+        return is_new
 
     async def is_banned(self, tg_id: int) -> bool:
         row = await self.db.fetchone("SELECT banned FROM users WHERE telegram_id=?", (tg_id,))

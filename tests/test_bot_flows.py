@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
+import pytest
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
 from aiogram.exceptions import TelegramForbiddenError
@@ -397,6 +399,26 @@ async def test_background_jobs_notifications_expiry_and_backup(
     await run_backup_once(svc, bot, settings)
     assert isinstance(session.sent_to(ADMIN)[-1], SendDocument)
     assert list((tmp_path / "backups").glob("exabyte-*.sqlite3"))
+
+
+@pytest.mark.asyncio
+async def test_new_user_alert_to_admin(svc: Service, tmp_path):
+    _, session, _, send_text, _, _ = _make_harness(svc, tmp_path)
+    new_uid = 777666555
+    admin_before = len(session.sent_to(ADMIN))
+
+    await send_text(new_uid, "/start")
+    await asyncio.sleep(0.05)
+
+    admin_after = session.sent_to(ADMIN)[admin_before:]
+    assert any("အသုံးပြုသူအသစ် စတင်အသုံးပြုပါသည်!" in (getattr(m, "text", "") or "") for m in admin_after)
+    assert any(str(new_uid) in (getattr(m, "text", "") or "") for m in admin_after)
+
+    # Subsequent messages from the same user must NOT re-alert
+    admin_count = len(session.sent_to(ADMIN))
+    await send_text(new_uid, "/start")
+    await asyncio.sleep(0.05)
+    assert len(session.sent_to(ADMIN)) == admin_count
 
 
 def test_strings_are_myanmar_unicode_not_zawgyi():

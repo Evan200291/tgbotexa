@@ -25,6 +25,7 @@ from ..bot.messages import (
     format_order_approved_message,
     status_label,
 )
+from ..bot.middleware import notify_admins_new_user
 from ..bot.user import send_key_card
 from ..config import Settings, check_dev_mode
 from ..service import Service, ServiceError
@@ -133,7 +134,19 @@ def create_webapp(
         if x_telegram_init_data:
             try:
                 u = validate_init_data(x_telegram_init_data, token_val, now=svc.now())
-                await svc.ensure_user(u.id, u.username, u.first_name)
+                is_new = await svc.ensure_user(u.id, u.username, u.first_name)
+                if is_new and bot is not None and not settings.is_admin(u.id) and settings.admin_ids:
+                    import asyncio
+                    asyncio.create_task(
+                        notify_admins_new_user(
+                            bot,
+                            svc,
+                            settings,
+                            u.id,
+                            u.first_name,
+                            u.username,
+                        )
+                    )
                 return u
             except AuthError as e:
                 if not settings.dev_mode:
