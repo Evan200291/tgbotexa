@@ -83,7 +83,7 @@ def format_key_message(
 
 
 def _plan_data_label(plan: P.Plan) -> str:
-    return f"+{plan.quota_gb} GB (Shared Data)" if plan.quota_gb else "Unlimited Data"
+    return f"+{plan.quota_gb} GB (All Server Regions)" if plan.quota_gb else "Unlimited Data"
 
 
 def format_key_extended_message(order: Order, kv: KeyView, now: datetime) -> str:

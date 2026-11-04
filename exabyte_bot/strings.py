@@ -67,7 +67,7 @@ S: dict[str, str] = {
         "♾️ <b>Unlimited Plan</b> <i>(စက် 1 လုံး • ရွေးချယ်ထားသော Server 1 ခု)</i>"
     ),
     "plans_gb_header": (
-        "🌐 <b>GB Data Plan</b> <i>(Server အားလုံး ပြောင်းသုံးနိုင်သည် • GB မျှသုံး)</i>"
+        "🌐 <b>GB Data Plan</b> <i>(Server Region အားလုံး စိတ်ကြိုက်ပြောင်းသုံးနိုင်သည်)</i>"
     ),
     "plan_card_line": (
         "• <b>{name}</b> ({days} ရက်) — {price_part}{badge_part}"
@@ -77,13 +77,13 @@ S: dict[str, str] = {
     "btn_buy_new_key": "➕ Key အသစ်ဝယ်မည်",
     "btn_extend_key": "🔄 လက်ရှိ Key တိုးမည် ({email})",
     "plan_choose_server": (
-        "🖧 <b>{plan_name}</b> အတွက် အသုံးပြုမည့် Server (၁) ခုကို ရွေးပါ\n"
+        "🖧 <b>{plan_name}</b> အတွက် အသုံးပြုမည့် Server Region (၁) ခုကို ရွေးပါ\n"
         "<i>(Unlimited Plan သည် နောက်ပိုင်း Server ပြောင်း၍ မရပါ)</i>"
     ),
-    "btn_switch_server": "🔄 ဆာဗာပြောင်းမည်",
+    "btn_switch_server": "🔄 Server Region ပြောင်းမည်",
     "server_switch_menu": (
-        "🖧 <b>Key (<code>{email}</code>) အတွက် Server ရွေးချယ်ပါ</b>\n"
-        "• လက်ကျန် Shared Data: <b>{remaining}</b>"
+        "🖧 <b>Key (<code>{email}</code>) အတွက် Server Region ရွေးချယ်ပါ</b>\n"
+        "• လက်ကျန် Data: <b>{remaining}</b>"
     ),
     "server_switched_ok": "✅ <b>{server_name}</b> သို့ ပြောင်းလဲပြီးပါပြီ။ (လက်ကျန် Data: <b>{remaining}</b>)",
     "server_switch_not_allowed": "🔒 Unlimited Plan သည် Server ပြောင်း၍ မရပါ။ GB Data Plan များသာ Server ပြောင်းသုံးနိုင်ပါသည်။",
@@ -151,7 +151,7 @@ S: dict[str, str] = {
         "• အခြေအနေ: <b>{status}</b>"
     ),
     "usage_card_paid_gb": (
-        "📶 <b>Data သုံးစွဲမှု (GB Plan — Server အားလုံး မျှသုံး)</b>\n"
+        "📶 <b>Data သုံးစွဲမှု (GB Plan — Server Region အားလုံး ပြောင်းသုံးနိုင်သည်)</b>\n"
         "{bar} <b>{percent}%</b>\n"
         "• သုံးပြီး: <b>{used}</b> / <b>{quota}</b> (လက်ကျန်: <b>{remaining}</b>)\n"
         "• လက်ကျန် သက်တမ်း: <b>{days_left} ရက်</b> ({expiry_date})\n"

@@ -313,8 +313,8 @@
       }
 
       const dataDesc = k.unlimited
-        ? "♾️ Unlimited Data (1 Server)"
-        : "🌐 Shared GB: ကျန် " +
+        ? "♾️ Unlimited Data (1 Server Region)"
+        : "🌐 All Server Regions: ကျန် " +
           fmtBytes(k.remaining_bytes != null ? k.remaining_bytes : Math.max(0, k.quota_bytes - k.used_bytes)) +
           " / " +
           fmtBytes(k.quota_bytes);
@@ -480,8 +480,8 @@
       card.className = "plan-card " + cls;
 
       const featHtml = p.unlimited
-        ? "📶 Data အကန့်အသတ်မရှိ (1 Server) • 📱 စက် " + p.devices + " လုံး • ⏳ " + p.days + " ရက်"
-        : "🌐 " + p.quota_gb + " GB (ဆာဗာအားလုံး ပြောင်းသုံးနိုင်သည် • Shared Data) • ⏳ " + p.days + " ရက်";
+        ? "📶 Data အကန့်အသတ်မရှိ (1 Server Region) • 📱 စက် " + p.devices + " လုံး • ⏳ " + p.days + " ရက်"
+        : "🌐 " + p.quota_gb + " GB (Server Region အားလုံး စိတ်ကြိုက်ပြောင်းသုံးနိုင်သည်) • ⏳ " + p.days + " ရက်";
 
       card.innerHTML =
         '<div class="plan-head">' +
