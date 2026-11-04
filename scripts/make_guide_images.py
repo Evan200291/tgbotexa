@@ -6,13 +6,24 @@ Output: exabyte_bot/assets/guides/step1.jpg .. step4.jpg (1080x1350)
 
 from __future__ import annotations
 
+import base64
+import io
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 W, H = 1080, 1350
-OUT = Path(__file__).resolve().parents[1] / "exabyte_bot" / "assets" / "guides"
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "exabyte_bot" / "assets" / "guides"
+AVATAR_PNG = ROOT / "exabyte_bot" / "webapp" / "static" / "brand" / "avatar-640.png"
+FONT_MM = ROOT / "Burmese Handwriting.ttf"
+CHROME_PATHS = [
+    Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+    Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+]
 
 NAVY_TOP = (8, 16, 38)
 NAVY_BOT = (14, 40, 70)
@@ -63,10 +74,72 @@ def background() -> Image.Image:
 
 def header(img: Image.Image, step: int, title: str) -> None:
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle([50, 46, 270, 126], radius=40, fill=CYAN)
-    d.text((160, 86), f"STEP {step}", font=F(46, True), fill=NAVY_TOP, anchor="mm")
-    d.text((300, 86), title, font=F(52, True), fill=WHITE, anchor="lm")
+    chrome = next((p for p in CHROME_PATHS if p.is_file()), None)
+    if not (chrome and FONT_MM.is_file()):
+        d.rounded_rectangle([50, 46, 270, 126], radius=40, fill=CYAN)
+        d.text((160, 86), f"STEP {step}", font=F(46, True), fill=NAVY_TOP, anchor="mm")
+        d.text((300, 86), title, font=F(52, True), fill=WHITE, anchor="lm")
     d.text((W - 50, H - 30), "EXABYTE DIGITAL STORE", font=F(26, True), fill=(120, 170, 200), anchor="rm")
+
+
+def overlay_burmese_header(img: Image.Image, step: int, mm_title: str) -> Image.Image:
+    chrome = next((p for p in CHROME_PATHS if p.is_file()), None)
+    if not (chrome and FONT_MM.is_file()):
+        return img
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=98)
+    bg_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    font_b64 = base64.b64encode(FONT_MM.read_bytes()).decode("ascii")
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+@font-face {{
+  font-family: 'BurmeseHandwriting';
+  src: url('data:font/ttf;base64,{font_b64}') format('truetype');
+}}
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{
+  width: 1080px; height: 1350px; overflow: hidden;
+  background: url('data:image/jpeg;base64,{bg_b64}') no-repeat center/cover;
+  font-family: 'BurmeseHandwriting', 'Segoe UI', sans-serif;
+}}
+.hdr {{
+  position: absolute; left: 46px; right: 46px; top: 44px; height: 86px;
+  display: flex; align-items: center; gap: 22px;
+}}
+.badge {{
+  height: 80px; padding: 0 32px; border-radius: 40px;
+  background: #22d3ee; color: #081026;
+  font-size: 42px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  white-space: nowrap;
+}}
+.title {{
+  color: #ffffff; font-size: 46px; font-weight: 800;
+  white-space: nowrap;
+}}
+</style></head><body>
+<div class="hdr">
+  <div class="badge">အဆင့် {step}</div>
+  <div class="title">{mm_title}</div>
+</div>
+</body></html>"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        html_file = Path(tmpdir) / "step.html"
+        png_file = Path(tmpdir) / "step.png"
+        html_file.write_text(html, encoding="utf-8")
+        subprocess.run(  # noqa: S603
+            [
+                str(chrome),
+                "--headless=new",
+                "--disable-gpu",
+                "--hide-scrollbars",
+                "--window-size=1080,1350",
+                f"--screenshot={png_file}",
+                html_file.as_uri(),
+            ],
+            check=True,
+        )
+        return Image.open(io.BytesIO(png_file.read_bytes())).convert("RGB")
 
 
 PX0, PY0, PX1, PY1 = 250, 175, 830, 1300  # phone body
@@ -155,8 +228,16 @@ def step1() -> Image.Image:
     top = SY0 + 70
     d.rectangle([SX0, top, SX1, top + 100], fill=TG_HEADER)
     d.text((SX0 + 36, top + 50), "‹", font=F(56, True), fill=CYAN, anchor="lm")
-    d.ellipse([SX0 + 80, top + 18, SX0 + 144, top + 82], fill=CYAN)
-    d.text((SX0 + 112, top + 50), "E", font=F(36, True), fill=NAVY_TOP, anchor="mm")
+    if AVATAR_PNG.is_file():
+        av = Image.open(AVATAR_PNG).convert("RGBA").resize((64, 64), Image.Resampling.LANCZOS)
+        mask = Image.new("L", (64, 64), 0)
+        ImageDraw.Draw(mask).ellipse((0, 0, 63, 63), fill=255)
+        img.paste(av.convert("RGB"), (SX0 + 80, top + 18), mask)
+        d = ImageDraw.Draw(img)
+        d.ellipse([SX0 + 80, top + 18, SX0 + 144, top + 82], outline=CYAN, width=2)
+    else:
+        d.ellipse([SX0 + 80, top + 18, SX0 + 144, top + 82], fill=CYAN)
+        d.text((SX0 + 112, top + 50), "E", font=F(36, True), fill=NAVY_TOP, anchor="mm")
     d.text((SX0 + 160, top + 34), "Exabyte Digital Store", font=F(28, True), fill=WHITE, anchor="lm")
     d.text((SX0 + 160, top + 68), "bot", font=F(22), fill=(130, 150, 170), anchor="lm")
 
@@ -290,9 +371,16 @@ def step4() -> Image.Image:
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    for i, fn in enumerate([step1, step2, step3, step4], start=1):
+    steps = [
+        (step1, "Key ကို နှိပ်၍ Copy ကူးပါ"),
+        (step2, "Outline ဖွင့်ပြီး + ကိုနှိပ်ပါ"),
+        (step3, "ADD SERVER ကို နှိပ်ပါ"),
+        (step4, "CONNECT နှိပ်ပါ — သုံးနိုင်ပါပြီ!"),
+    ]
+    for i, (fn, mm_title) in enumerate(steps, start=1):
         p = OUT / f"step{i}.jpg"
-        fn().save(p, quality=90, optimize=True)
+        im = overlay_burmese_header(fn(), i, mm_title)
+        im.save(p, quality=92, optimize=True)
         print("wrote", p)
     return 0
 
