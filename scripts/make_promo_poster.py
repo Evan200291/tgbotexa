@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
 ART_DIR = Path(r"C:\Users\User\.gemini\antigravity\brain\3947fff5-dee6-4ab7-a57e-bd1f56b78ebc")
@@ -20,6 +20,8 @@ OUT_DIR = ROOT / "exabyte-jpgs"
 FONT_PATH = ROOT / "Burmese Handwriting.ttf"
 LOGO_HORIZ_PATH = OUT_DIR / "exabyte-jpg" / "exabyte-logo-horizontal.jpg"
 LOGO_SYM_PATH = OUT_DIR / "exabyte-jpg-colour-options" / "symbol-02-white-on-navy.jpg"
+KBZ_LOGO_PATH = ART_DIR / "kbz_logo_official.png"
+WAVE_LOGO_PATH = ART_DIR / "wave_logo_official.png"
 
 CHROME_PATHS = [
     Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
@@ -28,17 +30,37 @@ CHROME_PATHS = [
 
 
 def prepare_example_base() -> Image.Image:
-    """Extract the 628x628 square poster from media_1793795035392_410ea9b0.jpg (0, 74, 628, 702),
-    preserve the 3D glowing green Outline emblem + small app icon at (x: 18..480, y: 408..784),
-    and clean the text/card regions so Chrome can render crisp 2048x2048 typography & cards.
+    """Prepare the 1024x1024 base canvas from media_1793795035392_410ea9b0.jpg:
+    - Replace the old 'အကောင်းဆုံး VPN SERVERS' area with seamless server rack texture from bg_left
+      so the server room background and the top arc of the 3D green sphere are completely smooth,
+      round, and natural with ZERO black boxes or harsh cuts.
+    - Clean the right cards area and the bottom area below the pedestal for crisp Chrome 2048x2048
+      HTML rendering with the user's official KBZPay and Wave Money logos.
     """
     raw = Image.open(UPLOAD_DIR / "media_1793795035392_410ea9b0.jpg").convert("RGB")
     sq = raw.crop((0, 74, 628, 702)).resize((1024, 1024), Image.Resampling.LANCZOS)
 
+    # 1. Seamless server rack texture blend over the old VPN SERVERS text (x: 0..545, y: 155..436)
+    bg_left_path = ART_DIR / "bg_left.png"
+    if not bg_left_path.exists():
+        im2 = Image.open(UPLOAD_DIR / "media_1793797314843_2531e800.jpg")
+        im2.crop((0, 150, 150, 600)).save(bg_left_path)
+    bg_left = Image.open(bg_left_path)
+    bg_scaled = bg_left.crop((0, 20, 145, 450)).resize((545, 360), Image.Resampling.LANCZOS)
+    darkened = Image.blend(bg_scaled, Image.new("RGB", (545, 360), (5, 14, 28)), 0.35)
+
+    blend_mask = Image.new("L", (1024, 1024), 0)
+    b_draw = ImageDraw.Draw(blend_mask)
+    b_draw.rectangle((0, 155, 545, 436), fill=255)
+    b_draw.rectangle((0, 436, 160, 448), fill=255)
+    b_draw.rectangle((380, 436, 545, 448), fill=255)
+    blend_mask = blend_mask.filter(ImageFilter.GaussianBlur(6))
+
+    sq.paste(darkened, (0, 150), blend_mask.crop((0, 150, 545, 510)))
+
+    # 2. Clean top header background for crisp typography
     def clean_region(
-        box: tuple[int, int, int, int],
-        c_top: tuple[int, int, int],
-        c_bot: tuple[int, int, int],
+        box: tuple[int, int, int, int], c_top: tuple[int, int, int], c_bot: tuple[int, int, int]
     ) -> None:
         x0, y0, x1, y1 = box
         w, h = x1 - x0, y1 - y0
@@ -50,27 +72,30 @@ def prepare_example_base() -> Image.Image:
             gd.line([(0, y), (w, y)], fill=c)
         sq.paste(grad, (x0, y0))
 
-    # Top header & firewall bypass line (y: 0..185)
     clean_region((0, 0, 1024, 185), (4, 13, 30), (7, 20, 44))
-    # Left text area above the 3D Outline circle (x: 0..520, y: 182..424)
-    clean_region((0, 182, 520, 424), (7, 20, 44), (9, 28, 50))
-    # Restore smooth top rim of the 3D circle over "EED • UNL" at (x: 170..345, y: 408..424)
-    clean_region((165, 408, 350, 419), (9, 26, 48), (9, 28, 50))
-    d_sq = ImageDraw.Draw(sq)
-    d_sq.arc((64, 415, 440, 770), start=250, end=290, fill=(24, 72, 48), width=6)
-    d_sq.arc((64, 418, 440, 770), start=252, end=288, fill=(46, 130, 78), width=4)
-    # Cover left and right corners around the top arc of the 3D circle (y: 424..438)
-    clean_region((0, 424, 175, 438), (9, 28, 50), (10, 30, 52))
-    clean_region((345, 424, 520, 438), (9, 28, 50), (10, 30, 52))
-    # Right 3 pricing cards area (x: 495..1024, y: 182..786)
-    clean_region((495, 182, 1024, 786), (6, 18, 38), (4, 13, 28))
-    # Bottom feature bar + contact/payment bar (y: 784..1024)
-    clean_region((0, 784, 1024, 1024), (4, 13, 28), (3, 9, 20))
+    clean_region((510, 180, 1024, 880), (6, 18, 38), (4, 13, 28))
+
+    # 3. Clean the bottom area below the glowing green pedestal (y: 825..1024)
+    grad_bot = Image.new("RGB", (1024, 200))
+    gd_bot = ImageDraw.Draw(grad_bot)
+    for y in range(200):
+        k = y / 199.0
+        c = (int(4 - 2 * k), int(13 - 4 * k), int(26 - 8 * k))
+        gd_bot.line([(0, y), (1024, y)], fill=c)
+
+    bot_mask = Image.new("L", (1024, 200), 255)
+    b_mask_draw = ImageDraw.Draw(bot_mask)
+    for y in range(16):
+        b_mask_draw.line([(0, y), (1024, y)], fill=int(y * 255 / 15))
+
+    sq.paste(grad_bot, (0, 824), bot_mask)
 
     return sq
 
 
-def build_example_poster_html(bg_b64: str, font_b64: str, logo_horiz_b64: str) -> str:
+def build_example_poster_html(
+    bg_b64: str, font_b64: str, logo_horiz_b64: str, kbz_logo_b64: str, wave_logo_b64: str
+) -> str:
     shield_svg = """<svg class="shield-ico" viewBox="0 0 64 76" fill="none">
       <defs>
         <linearGradient id="sg" x1="0" y1="0" x2="64" y2="76" gradientUnits="userSpaceOnUse">
@@ -208,20 +233,20 @@ def build_example_poster_html(bg_b64: str, font_b64: str, logo_horiz_b64: str) -
   .right-cards {{
     position: absolute;
     right: 38px;
-    top: 196px;
-    width: 452px;
+    top: 184px;
+    width: 454px;
     display: flex;
     flex-direction: column;
     gap: 28px;
   }}
   .p-card {{
     position: relative;
-    height: 170px;
+    height: 204px;
     border-radius: 24px;
     background: linear-gradient(135deg, rgba(8, 28, 56, 0.94), rgba(4, 14, 32, 0.97));
     border: 2px solid rgba(56, 189, 248, 0.78);
     box-shadow: 0 0 24px rgba(34, 211, 238, 0.25), inset 0 0 18px rgba(56, 189, 248, 0.14);
-    padding: 28px 24px 18px 26px;
+    padding: 34px 24px 20px 28px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -229,14 +254,14 @@ def build_example_poster_html(bg_b64: str, font_b64: str, logo_horiz_b64: str) -
   .p-tab {{
     position: absolute;
     left: 22px;
-    top: -17px;
-    height: 36px;
-    padding: 0 20px;
-    border-radius: 11px;
+    top: -18px;
+    height: 38px;
+    padding: 0 22px;
+    border-radius: 12px;
     background: linear-gradient(90deg, #38bdf8, #0284c7);
     color: #ffffff;
     font-family: 'BurmeseHandwriting', sans-serif;
-    font-size: 23px;
+    font-size: 24px;
     font-weight: 800;
     display: flex;
     align-items: center;
@@ -244,23 +269,23 @@ def build_example_poster_html(bg_b64: str, font_b64: str, logo_horiz_b64: str) -
   }}
   .p-price-num {{
     font-family: 'Segoe UI', sans-serif;
-    font-size: 62px;
+    font-size: 68px;
     font-weight: 900;
     color: #ffffff;
     line-height: 1;
     letter-spacing: -0.5px;
   }}
   .p-price-num span {{
-    font-size: 38px;
+    font-size: 42px;
     color: #0ea5e9;
     font-weight: 800;
     margin-left: 8px;
   }}
   .p-meta {{
-    margin-top: 8px;
+    margin-top: 10px;
     white-space: nowrap;
     font-family: 'BurmeseHandwriting', sans-serif;
-    font-size: 19.5px;
+    font-size: 21px;
     font-weight: 700;
     color: #cbd5e1;
   }}
@@ -268,65 +293,18 @@ def build_example_poster_html(bg_b64: str, font_b64: str, logo_horiz_b64: str) -
     color: #6ee7b7;
   }}
   .shield-ico {{
-    width: 68px;
-    height: 80px;
+    width: 76px;
+    height: 90px;
     flex-shrink: 0;
-    filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.55));
-  }}
-  /* Feature Strip (y: 794..878) */
-  .feat-strip {{
-    position: absolute;
-    left: 30px;
-    right: 30px;
-    top: 794px;
-    height: 82px;
-    border-radius: 20px;
-    background: linear-gradient(180deg, rgba(10, 26, 52, 0.96), rgba(6, 16, 34, 0.98));
-    border: 1.8px solid rgba(56, 189, 248, 0.58);
-    display: grid;
-    grid-template-columns: 0.95fr 1.05fr 1fr 1.2fr;
-    align-items: center;
-    padding: 0 12px;
-  }}
-  .feat-col {{
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    height: 54px;
-    border-right: 1px solid rgba(148, 163, 184, 0.25);
-  }}
-  .feat-col:last-child {{
-    border-right: none;
-  }}
-  .feat-ico {{
-    width: 42px;
-    height: 42px;
-    color: #38bdf8;
-    flex-shrink: 0;
-  }}
-  .feat-t1 {{
-    font-family: 'Segoe UI', sans-serif;
-    font-size: 20.5px;
-    font-weight: 900;
-    color: #ffffff;
-    line-height: 1.3;
-  }}
-  .feat-t2 {{
-    margin-top: 8px;
-    font-family: 'BurmeseHandwriting', sans-serif;
-    font-size: 17.5px;
-    font-weight: 700;
-    color: #7dd3fc;
-    line-height: 1.3;
+    filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.6));
   }}
   /* Bottom Row: Contact Bot + Payment (KBZ Pay & Wave Pay) */
   .bot-row {{
     position: absolute;
     left: 30px;
     right: 30px;
-    top: 892px;
-    height: 100px;
+    top: 894px;
+    height: 104px;
     display: grid;
     grid-template-columns: 1.15fr 1fr;
     gap: 16px;
@@ -378,57 +356,33 @@ def build_example_poster_html(bg_b64: str, font_b64: str, logo_horiz_b64: str) -
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 18px;
+    padding: 0 20px;
   }}
   .pay-left {{
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 10px;
   }}
   .pay-left span {{
     font-family: 'BurmeseHandwriting', sans-serif;
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 800;
     color: #7dd3fc;
   }}
   .pay-badges-wrap {{
-    background: #ffffff;
-    border-radius: 14px;
-    padding: 7px 12px;
+    background: transparent;
+    padding: 0;
     display: flex;
     align-items: center;
     gap: 12px;
   }}
-  .kbz-chip {{
-    width: 112px;
+  .official-pay-chip {{
     height: 60px;
-    border-radius: 10px;
-    background: linear-gradient(145deg, #0054a6, #003d7a);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: #ffffff;
-    font-family: 'Segoe UI', sans-serif;
-    font-weight: 900;
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+    display: block;
+    object-fit: contain;
   }}
-  .kbz-chip .t1 {{ font-size: 22px; line-height: 1; }}
-  .kbz-chip .t2 {{ font-size: 16px; color: #93c5fd; line-height: 1.05; }}
-  .wave-chip {{
-    width: 112px;
-    height: 60px;
-    border-radius: 10px;
-    background: linear-gradient(145deg, #facc15, #eab308);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Segoe UI', sans-serif;
-    font-weight: 900;
-  }}
-  .wave-chip .t1 {{ font-size: 22px; color: #0f172a; line-height: 1; }}
-  .wave-chip .t2 {{ font-size: 16px; color: #1d4ed8; line-height: 1.05; }}
 </style>
 </head>
 <body>
@@ -480,47 +434,6 @@ def build_example_poster_html(bg_b64: str, font_b64: str, logo_horiz_b64: str) -
     </div>
   </div>
 
-  <div class="feat-strip">
-    <div class="feat-col">
-      <svg class="feat-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 2l8 4v6c0 5.5-3.4 10.4-8 12-4.6-1.6-8-6.5-8-12V6l8-4z"/>
-        <path d="M9 12l2 2 4-4"/>
-      </svg>
-      <div>
-        <div class="feat-t1">100%</div>
-        <div class="feat-t2">BYPASSED</div>
-      </div>
-    </div>
-    <div class="feat-col">
-      <svg class="feat-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-      </svg>
-      <div>
-        <div class="feat-t1">10 စက္ကန့်</div>
-        <div class="feat-t2">ချက်ချင်း Key ရ</div>
-      </div>
-    </div>
-    <div class="feat-col">
-      <svg class="feat-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M2 20h2v-4H2v4zm5 0h2v-8H7v8zm5 0h2v-12h-2v12zm5 0h2V4h-2v16z"/>
-      </svg>
-      <div>
-        <div class="feat-t1">100%</div>
-        <div class="feat-t2">လိုင်းငြိမ်သည်</div>
-      </div>
-    </div>
-    <div class="feat-col">
-      <svg class="feat-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="9"/>
-        <path d="M12 7v5l3 3"/>
-      </svg>
-      <div>
-        <div class="feat-t1">24/7</div>
-        <div class="feat-t2">အချိန်မရွေး ကူညီပေး</div>
-      </div>
-    </div>
-  </div>
-
   <div class="bot-row">
     <div class="contact-box">
       <div class="tg-circle">
@@ -546,14 +459,8 @@ def build_example_poster_html(bg_b64: str, font_b64: str, logo_horiz_b64: str) -
         <span>ငွေပေးချေရန်</span>
       </div>
       <div class="pay-badges-wrap">
-        <div class="kbz-chip">
-          <div class="t1">KBZ</div>
-          <div class="t2">Pay</div>
-        </div>
-        <div class="wave-chip">
-          <div class="t1">Wave</div>
-          <div class="t2">Pay</div>
-        </div>
+        <img class="official-pay-chip" src="data:image/png;base64,{kbz_logo_b64}" alt="KBZPay">
+        <img class="official-pay-chip" src="data:image/png;base64,{wave_logo_b64}" alt="Wave Money">
       </div>
     </div>
   </div>
@@ -562,7 +469,9 @@ def build_example_poster_html(bg_b64: str, font_b64: str, logo_horiz_b64: str) -
 """
 
 
-def build_welcome_banner_html(font_b64: str, logo_sym_b64: str) -> str:
+def build_welcome_banner_html(
+    font_b64: str, logo_sym_b64: str, kbz_logo_b64: str, wave_logo_b64: str
+) -> str:
     """Professional 1280x720 (16:9) Exabyte Digital Store Welcome Banner in Burmese.
     Uses `Burmese Handwriting.ttf` (no cartoon rockets, no 'High-Speed VPN Servers').
     """
@@ -745,23 +654,27 @@ def build_welcome_banner_html(font_b64: str, logo_sym_b64: str) -> str:
     color: #ffffff;
   }}
   .pay-chip {{
-    background: #0054a6;
-    border-radius: 10px;
-    padding: 8px 16px;
-    font-family: 'Segoe UI', sans-serif;
-    font-size: 20px;
-    font-weight: 900;
-    color: #ffffff;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 6px 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }}
-  .wave-chip {{
-    background: #facc15;
-    border-radius: 10px;
-    padding: 8px 16px;
-    font-family: 'Segoe UI', sans-serif;
-    font-size: 20px;
-    font-weight: 900;
-    color: #0f172a;
+  .pay-chip-logo {{
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: block;
   }}
+  .pay-chip-text {{
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 19px;
+    font-weight: 900;
+  }}
+  .kbz-text {{ color: #0054a6; }}
+  .wave-text {{ color: #0c4f7c; }}
 </style>
 </head>
 <body>
@@ -799,8 +712,10 @@ def build_welcome_banner_html(font_b64: str, logo_sym_b64: str) -> str:
 
     <div class="footer-strip">
       <div class="bot-chip">🤖 @exabytedigitalsbot</div>
-      <div class="pay-chip">KBZ Pay</div>
-      <div class="wave-chip">Wave Pay</div>
+      <img style="height: 44px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);"
+        src="data:image/png;base64,{kbz_logo_b64}" alt="KBZPay">
+      <img style="height: 44px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);"
+        src="data:image/png;base64,{wave_logo_b64}" alt="Wave Money">
     </div>
   </div>
 </body>
@@ -821,6 +736,8 @@ def main() -> None:
     font_b64 = base64.b64encode(FONT_PATH.read_bytes()).decode("ascii")
     logo_horiz_b64 = base64.b64encode(LOGO_HORIZ_PATH.read_bytes()).decode("ascii")
     logo_sym_b64 = base64.b64encode(LOGO_SYM_PATH.read_bytes()).decode("ascii")
+    kbz_logo_b64 = base64.b64encode(KBZ_LOGO_PATH.read_bytes()).decode("ascii")
+    wave_logo_b64 = base64.b64encode(WAVE_LOGO_PATH.read_bytes()).decode("ascii")
 
     # 2. Render the Example-Based Promo Poster (2048x2048 High-Res)
     ex_bg = prepare_example_base()
@@ -829,7 +746,9 @@ def main() -> None:
     ex_bg_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        poster_html = build_example_poster_html(ex_bg_b64, font_b64, logo_horiz_b64)
+        poster_html = build_example_poster_html(
+            ex_bg_b64, font_b64, logo_horiz_b64, kbz_logo_b64, wave_logo_b64
+        )
         p_html_file = Path(tmpdir) / "poster.html"
         p_png_file = Path(tmpdir) / "poster.png"
         p_html_file.write_text(poster_html, encoding="utf-8")
@@ -856,7 +775,9 @@ def main() -> None:
         print("Saved:", poster_out.name)
 
         # 3. Render the New Professional Burmese Welcome Banner (1280x720 HD & 640x360 BotFather)
-        welcome_html = build_welcome_banner_html(font_b64, logo_sym_b64)
+        welcome_html = build_welcome_banner_html(
+            font_b64, logo_sym_b64, kbz_logo_b64, wave_logo_b64
+        )
         w_html_file = Path(tmpdir) / "welcome.html"
         w_png_file = Path(tmpdir) / "welcome.png"
         w_html_file.write_text(welcome_html, encoding="utf-8")
