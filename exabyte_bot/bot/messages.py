@@ -52,12 +52,15 @@ def format_key_message(
     void_sub = sub_url
     del void_sub
     if kv.unlimited:
-        usage_line = f"<b>Unlimited</b> (သုံးပြီး: <b>{fmt_bytes(kv.used_bytes)}</b>)"
-    else:
-        bar, pct = progress_bar(kv.used_bytes, kv.quota_bytes)
         usage_line = (
-            f"{bar} <b>{pct}%</b> (<b>{fmt_bytes(kv.used_bytes)}</b> / "
-            f"<b>{fmt_bytes(kv.quota_bytes)}</b> • ကျန် <b>{fmt_bytes(kv.remaining_bytes)}</b>)"
+            f"• <b>Data ပမာဏ</b> — <b>Unlimited</b> (သုံးပြီး: <b>{fmt_bytes(kv.used_bytes)}</b>)"
+        )
+    else:
+        pct = min(int(round(kv.used_bytes * 100 / kv.quota_bytes)), 100) if kv.quota_bytes > 0 else 0
+        usage_line = (
+            f"• <b>သုံးပြီး Data</b> — <b>{fmt_bytes(kv.used_bytes)}</b> / "
+            f"<b>{fmt_bytes(kv.quota_bytes)}</b> ({pct}%)\n"
+            f"• <b>လက်ကျန် Data</b> — <b>{fmt_bytes(kv.remaining_bytes)}</b>"
         )
     body = t(
         "key_card",
@@ -75,7 +78,7 @@ def format_key_message(
         )
         body += "\n" + t("extra_servers_section", servers=srv_lines)
     if intro:
-        body = f"{intro}\n{body}"
+        body = f"{intro}\n\n{body}"
     return branded(body)
 
 
@@ -151,16 +154,8 @@ def format_usage_message(kv: KeyView, now: datetime) -> str:
 
 
 def _format_plan_line(p: P.Plan) -> str:
-    if p.discount_mmk > 0:
-        price_part = f"<s>{fmt_mmk(p.original_price_mmk)}</s> <b>{fmt_mmk(p.price_mmk)}</b>"
-        save_txt = t("badge_save", amount=fmt_mmk(p.discount_mmk))
-        badge_part = f" • 🏷️ <b>{save_txt}</b>"
-        if p.best_value:
-            badge_part += f" ({t('badge_best')})"
-    else:
-        price_part = f"<b>{fmt_mmk(p.price_mmk)}</b>"
-        badge_part = ""
-    return t("plan_card_line", name=p.name, days=p.days, price_part=price_part, badge_part=badge_part)
+    price_part = f"<b>{fmt_mmk(p.price_mmk)}</b>"
+    return t("plan_card_line", name=p.name, days=p.days, price_part=price_part, badge_part="")
 
 
 def format_plans_message() -> str:
@@ -260,9 +255,9 @@ def key_kb(kv: KeyView) -> InlineKeyboardMarkup:
                 text=t("btn_switch_server"), callback_data=f"key:srvmenu:{kv.id}"
             )
         ])
-    rows.extend([
-        [InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide")],
-        [InlineKeyboardButton(text=t("back"), callback_data="nav:home")],
+    rows.append([
+        InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide"),
+        InlineKeyboardButton(text=t("back"), callback_data="nav:home"),
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -285,15 +280,29 @@ def key_server_switch_kb(
 
 
 def plans_kb() -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = [
-        [
-            InlineKeyboardButton(
-                text=t("btn_select_plan", name=p.name, price=fmt_mmk(p.price_mmk)),
-                callback_data=f"plan:{p.id}",
-            )
-        ]
-        for p in P.all_plans()
-    ]
+    unlim = P.plans_in("vpn")
+    gb = P.plans_in("vpn_gb")
+    rows: list[list[InlineKeyboardButton]] = []
+    if len(unlim) == len(gb) and gb:
+        for u_plan, g_plan in zip(unlim, gb, strict=False):
+            rows.append([
+                InlineKeyboardButton(
+                    text=t("btn_select_plan", name=u_plan.name, price=fmt_mmk(u_plan.price_mmk)),
+                    callback_data=f"plan:{u_plan.id}",
+                ),
+                InlineKeyboardButton(
+                    text=t("btn_select_plan", name=g_plan.name, price=fmt_mmk(g_plan.price_mmk)),
+                    callback_data=f"plan:{g_plan.id}",
+                ),
+            ])
+    else:
+        for p in P.all_plans():
+            rows.append([
+                InlineKeyboardButton(
+                    text=t("btn_select_plan", name=p.name, price=fmt_mmk(p.price_mmk)),
+                    callback_data=f"plan:{p.id}",
+                )
+            ])
     rows.append([InlineKeyboardButton(text=t("back"), callback_data="nav:home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

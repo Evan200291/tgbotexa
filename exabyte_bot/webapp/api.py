@@ -119,6 +119,9 @@ def create_webapp(
 ) -> FastAPI:
     check_dev_mode(settings)
     app = FastAPI(title="Exabyte Digital Store", docs_url=None, redoc_url=None)
+    guides_dir = Path(__file__).resolve().parents[1] / "assets" / "guides"
+    if guides_dir.is_dir():
+        app.mount("/static/guides", StaticFiles(directory=str(guides_dir)), name="guides")
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     async def current_user(

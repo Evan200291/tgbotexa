@@ -246,6 +246,18 @@
       }
     }
 
+    const qWrap = document.getElementById("home-quick-key-wrap");
+    const qBox = document.getElementById("home-quick-key-box");
+    if (qWrap && qBox) {
+      if (st.has_key && st.link) {
+        qWrap.classList.remove("hidden");
+        qBox.textContent = st.link;
+        qBox.onclick = () => copyText(st.link, "VPN Key Link");
+      } else {
+        qWrap.classList.add("hidden");
+      }
+    }
+
     // Trial section + live countdown
     const trialBtn = document.getElementById("btn-claim-trial");
     const trialDesc = document.getElementById("trial-desc");
@@ -467,35 +479,16 @@
       const card = document.createElement("div");
       card.className = "plan-card " + cls;
 
-      let ribbonHtml = "";
-      if (p.best_value) {
-        ribbonHtml =
-          '<div class="plan-ribbon">✨ ' +
-          p.badge_text +
-          " • " +
-          p.discount_text +
-          " သက်သာ</div>";
-      } else if (p.discount_mmk > 0) {
-        ribbonHtml = '<div class="plan-ribbon">🏷️ ' + p.badge_text + "</div>";
-      }
-
-      const oldPriceHtml =
-        p.discount_mmk > 0
-          ? '<span class="plan-old-price">' + p.original_price_text + "</span>"
-          : "";
-
       const featHtml = p.unlimited
         ? "📶 Data အကန့်အသတ်မရှိ (1 Server) • 📱 စက် " + p.devices + " လုံး • ⏳ " + p.days + " ရက်"
         : "🌐 " + p.quota_gb + " GB (ဆာဗာအားလုံး ပြောင်းသုံးနိုင်သည် • Shared Data) • ⏳ " + p.days + " ရက်";
 
       card.innerHTML =
-        ribbonHtml +
         '<div class="plan-head">' +
         '<div class="plan-name">' + (p.unlimited ? "🛡️ " : "🌐 ") +
         p.name +
         "</div>" +
         '<div class="plan-price-wrap">' +
-        oldPriceHtml +
         '<span class="plan-price">' +
         p.price_text +
         "</span></div>" +

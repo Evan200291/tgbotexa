@@ -62,8 +62,13 @@ S: dict[str, str] = {
     "badge_save": "{amount} သက်သာ",
     "badge_best": "အတန်ဆုံး",
     "plan_features": "Data အကန့်အသတ်မရှိ • စက် {devices} လုံး • {days} ရက်",
-    "plans_header": "💳 <b>Unlimited Plan များ (စက် 1 လုံး • ရွေးချယ်ထားသော Server 1 ခု)</b>",
-    "plans_gb_header": "📶 <b>GB Data Plan များ (Server အားလုံး ပြောင်းသုံးနိုင်သည် • GB မျှသုံး)</b>",
+    "plans_header": (
+        "💳 <b>VPN Plan များ ရွေးချယ်ပါ</b>\n\n"
+        "♾️ <b>Unlimited Plan</b> <i>(စက် 1 လုံး • ရွေးချယ်ထားသော Server 1 ခု)</i>"
+    ),
+    "plans_gb_header": (
+        "🌐 <b>GB Data Plan</b> <i>(Server အားလုံး ပြောင်းသုံးနိုင်သည် • GB မျှသုံး)</i>"
+    ),
     "plan_card_line": (
         "• <b>{name}</b> ({days} ရက်) — {price_part}{badge_part}"
     ),
@@ -83,7 +88,7 @@ S: dict[str, str] = {
     "server_switched_ok": "✅ <b>{server_name}</b> သို့ ပြောင်းလဲပြီးပါပြီ။ (လက်ကျန် Data: <b>{remaining}</b>)",
     "server_switch_not_allowed": "🔒 Unlimited Plan သည် Server ပြောင်း၍ မရပါ။ GB Data Plan များသာ Server ပြောင်းသုံးနိုင်ပါသည်။",
     # --- trial ---
-    "trial_ok": "🔑 အခမဲ့ စမ်းသပ် Key ရပါပြီ။ <b>{gb} GB</b>၊ <b>{days} ရက်</b> သုံးနိုင်ပါသည်။",
+    "trial_ok": "✅ <b>အပတ်စဉ် အခမဲ့ စမ်းသပ် Key ({gb} GB / {days} ရက်) ရရှိပါပြီ!</b>",
     "trial_too_early": "⏳ အခမဲ့ စမ်းသပ်ကို နောက်ထပ် <b>{remaining}</b> အကြာတွင် ထပ်ယူနိုင်ပါမည်။",
     "trial_paid_active": "🛡️ သင့်တွင် ငွေပေး Plan အသုံးပြုနေဆဲ ဖြစ်သောကြောင့် အခမဲ့ စမ်းသပ် မလိုတော့ပါ။",
     # --- orders / payment ---
@@ -131,11 +136,11 @@ S: dict[str, str] = {
     "order_rejected_reason": "❌ ငွေပေးချေမှုကို အတည်မပြုနိုင်ပါ။\nအကြောင်းရင်း: <b>{reason}</b>",
     # --- key & usage ---
     "key_card": (
-        "🔑 <b>သင့် VPN Key နှင့် Data လက်ကျန်</b>\n"
-        "• အမျိုးအစား: <b>{kind}</b> ({status})\n"
-        "• Data သုံးစွဲမှု: {usage_line}\n"
-        "• သက်တမ်းကုန်ရက်: <b>{expiry_date}</b> (<b>{days_left} ရက်</b> ကျန်)\n"
-        "📋 <b>Key Link (နှိပ်၍ ကူးယူပါ):</b>\n"
+        "🔑 <b>သင့် VPN Key နှင့် Data အချက်အလက်</b>\n\n"
+        "• <b>အမျိုးအစား</b> — <b>{kind}</b> ({status})\n"
+        "{usage_line}\n"
+        "• <b>သက်တမ်းကုန်ရက်</b> — <b>{expiry_date}</b> (<b>{days_left} ရက်</b> ကျန်)\n\n"
+        "📋 <b>Key Link (တစ်ချက်နှိပ်၍ Copy ကူးပါ):</b>\n"
         "<code>{link}</code>"
     ),
     "usage_card_trial": (
