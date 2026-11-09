@@ -5,7 +5,9 @@ from __future__ import annotations
 import secrets
 import string
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
+
+UTC = timezone.utc
 
 MS_PER_DAY = 86_400_000
 GB = 1024**3
