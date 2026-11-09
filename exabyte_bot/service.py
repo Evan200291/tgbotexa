@@ -568,7 +568,8 @@ class Service:
                 raise TrialPaidActive()
             now = self.now()
             if info["reason"] == "cooldown":
-                raise TrialTooEarly(datetime.fromisoformat(info["next_trial_at"]), now)
+                next_at = str(info["next_trial_at"]).replace("Z", "+00:00")
+                raise TrialTooEarly(datetime.fromisoformat(next_at), now)
 
             old_trials = await self.db.fetchall(
                 "SELECT * FROM subscriptions WHERE user_id=?", (tg_id,)
