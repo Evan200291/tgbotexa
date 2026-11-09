@@ -5,10 +5,14 @@
 
 # --- runtime data ---
 data/
+data_bot2/
 backups/
 *.db
 *.db-wal
 *.db-shm
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
 *.log
 caddy_data/
 caddy_config/

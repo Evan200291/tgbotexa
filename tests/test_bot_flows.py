@@ -231,7 +231,7 @@ async def test_full_payment_and_admin_approval_flow(svc: Service, tmp_path):
 
     await tap(USER, "nav:plans")
     plans_txt = session.last_text(USER)
-    assert "14,500 ကျပ်" in plans_txt and "<s>" not in plans_txt
+    assert "3,500 ကျပ်" in plans_txt and "10,000 ကျပ်" in plans_txt and "<s>" not in plans_txt
 
     await tap(USER, "plan:vpn_3m")
     ord_txt = session.last_text(USER)

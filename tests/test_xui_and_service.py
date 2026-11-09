@@ -113,12 +113,12 @@ def test_qr_png_is_png():
 def test_plan_prices_from_data():
     prices = {p.id: (p.price_mmk, p.original_price_mmk, p.discount_mmk) for p in P.PLANS}
     assert prices == {
-        "vpn_1m": (5000, 5000, 0),
-        "vpn_3m": (14500, 15000, 500),
-        "vpn_6m": (29000, 30000, 1000),
-        "vpn_gb_1m": (5000, 5000, 0),
-        "vpn_gb_3m": (14500, 15000, 500),
-        "vpn_gb_6m": (29000, 30000, 1000),
+        "vpn_1m": (3500, 3500, 0),
+        "vpn_3m": (10000, 10500, 500),
+        "vpn_6m": (20000, 21000, 1000),
+        "vpn_gb_1m": (3500, 3500, 0),
+        "vpn_gb_3m": (10000, 10500, 500),
+        "vpn_gb_6m": (20000, 21000, 1000),
     }
     vpn_plans = P.plans_in("vpn")
     gb_plans = P.plans_in("vpn_gb")

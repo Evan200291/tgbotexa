@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # ---- Easy-to-edit constants -------------------------------------------------
-MONTHLY_PRICE_MMK = 5_000
+MONTHLY_PRICE_MMK = 3_500
 DAYS_PER_MONTH = 30
 
 TRIAL_QUOTA_GB = 5

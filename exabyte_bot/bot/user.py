@@ -42,7 +42,7 @@ GUIDE_INSTALL_KEYS = {
     "desktop": "guide_install_desktop",
 }
 GUIDE_ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets" / "guides"
-_GUIDE_FILE_ID_CACHE: dict[int, str] = {}
+_GUIDE_FILE_ID_CACHE: dict[tuple[int, int], str] = {}
 
 
 async def send_key_card(
@@ -321,24 +321,40 @@ def build_user_router() -> Router:
             img_path = GUIDE_ASSETS_DIR / f"step{idx}.jpg"
             if not img_path.is_file():
                 continue
-            cached_fid = _GUIDE_FILE_ID_CACHE.get(idx)
+            cache_key = (bot.id, idx)
+            db_key = f"guide_fid_{bot.id}_{idx}"
+            cached_fid = _GUIDE_FILE_ID_CACHE.get(cache_key)
             if not cached_fid:
-                cached_fid = await svc.db.get_setting(f"guide_fid_{idx}")
+                cached_fid = await svc.db.get_setting(db_key)
                 if cached_fid:
-                    _GUIDE_FILE_ID_CACHE[idx] = cached_fid
+                    _GUIDE_FILE_ID_CACHE[cache_key] = cached_fid
 
-            photo_ref: str | FSInputFile = cached_fid or FSInputFile(img_path)
-            sent = await bot.send_photo(
-                chat_id=chat_id,
-                photo=photo_ref,
-                caption=branded(caption),
-                parse_mode="HTML",
-            )
+            sent = None
+            if cached_fid:
+                try:
+                    sent = await bot.send_photo(
+                        chat_id=chat_id,
+                        photo=cached_fid,
+                        caption=branded(caption),
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    _GUIDE_FILE_ID_CACHE.pop(cache_key, None)
+                    sent = None
+
+            if sent is None:
+                sent = await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=FSInputFile(img_path),
+                    caption=branded(caption),
+                    parse_mode="HTML",
+                )
+
             if sent.photo:
                 new_fid = sent.photo[-1].file_id
-                if _GUIDE_FILE_ID_CACHE.get(idx) != new_fid:
-                    _GUIDE_FILE_ID_CACHE[idx] = new_fid
-                    await svc.db.set_setting(f"guide_fid_{idx}", new_fid)
+                if _GUIDE_FILE_ID_CACHE.get(cache_key) != new_fid:
+                    _GUIDE_FILE_ID_CACHE[cache_key] = new_fid
+                    await svc.db.set_setting(db_key, new_fid)
 
         await bot.send_message(
             chat_id, branded(t(str_key)), parse_mode="HTML", reply_markup=guide_detail_kb()

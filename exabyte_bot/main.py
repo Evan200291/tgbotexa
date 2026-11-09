@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
 import uvicorn
 from aiogram import Bot, Dispatcher
@@ -43,7 +44,8 @@ async def run() -> None:  # pragma: no cover - production entrypoint
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    settings = Settings()
+    env_file = os.environ.get("ENV_FILE", ".env")
+    settings = Settings(_env_file=env_file)
     require_runtime_secrets(settings)
 
     db = Database(settings.db_path)

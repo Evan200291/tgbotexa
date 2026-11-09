@@ -25,7 +25,7 @@ async def _submitted(svc: Service, uid: int, plan: str, shot: str = "uniq-1"):
 
 
 @pytest.mark.parametrize("plan,amount,days", [
-    ("vpn_1m", 5000, 30), ("vpn_3m", 14500, 90), ("vpn_6m", 29000, 180),
+    ("vpn_1m", 3500, 30), ("vpn_3m", 10000, 90), ("vpn_6m", 20000, 180),
 ])
 async def test_purchase_each_plan(svc: Service, user, panel, clock, plan, amount, days):
     order = await svc.create_order(user, plan)
