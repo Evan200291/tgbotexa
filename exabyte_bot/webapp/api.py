@@ -483,21 +483,26 @@ def create_webapp(
                 order.code, user.id, key_enabled=kv.enabled if kv else True
             )
             sent_msg = None
-            try:
-                photo_file = BufferedInputFile(img_bytes, filename=f"slip-{order.code}.{ext}")
-                sent_msg = await bot.send_photo(
-                    chat_id=settings.admin_ids[0],
-                    photo=photo_file,
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_markup=with_kb,
-                )
-            except Exception:
-                log.exception("failed to send photo to admin; falling back to text message")
-                with contextlib.suppress(Exception):
-                    sent_msg = await bot.send_message(
-                        settings.admin_ids[0], caption, parse_mode="HTML", reply_markup=with_kb
+            for aid in settings.admin_ids:
+                try:
+                    photo_file = BufferedInputFile(img_bytes, filename=f"slip-{order.code}.{ext}")
+                    msg_res = await bot.send_photo(
+                        chat_id=aid,
+                        photo=photo_file,
+                        caption=caption,
+                        parse_mode="HTML",
+                        reply_markup=with_kb,
                     )
+                    if sent_msg is None:
+                        sent_msg = msg_res
+                except Exception:
+                    log.exception("failed to send photo to admin %s; falling back to text message", aid)
+                    with contextlib.suppress(Exception):
+                        msg_res = await bot.send_message(
+                            aid, caption, parse_mode="HTML", reply_markup=with_kb
+                        )
+                        if sent_msg is None:
+                            sent_msg = msg_res
 
             if sent_msg is not None and getattr(sent_msg, "photo", None):
                 # Update orders table with real Telegram photo file_id for future retrieval

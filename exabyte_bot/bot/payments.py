@@ -279,15 +279,18 @@ def build_payments_router() -> Router:
                     key_status=status_label(kv.status) if kv else "-",
                 )
             )
-            await bot.send_photo(
-                chat_id=settings.admin_ids[0],
-                photo=best_photo.file_id,
-                caption=caption,
-                parse_mode="HTML",
-                reply_markup=admin_order_review_kb(
-                    order.code, uid, key_enabled=kv.enabled if kv else True
-                ),
+            kb = admin_order_review_kb(
+                order.code, uid, key_enabled=kv.enabled if kv else True
             )
+            for aid in settings.admin_ids:
+                with contextlib.suppress(Exception):
+                    await bot.send_photo(
+                        chat_id=aid,
+                        photo=best_photo.file_id,
+                        caption=caption,
+                        parse_mode="HTML",
+                        reply_markup=kb,
+                    )
 
     @r.message(StateFilter(PaymentStates.waiting_screenshot))
     async def on_non_photo_while_waiting(msg: Message, state: FSMContext) -> None:
