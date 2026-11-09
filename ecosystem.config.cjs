@@ -33,6 +33,7 @@ module.exports = {
       env: {
         ENV_FILE: ".env.bot2",
         BOT_DOMAIN: "tgbot2.lhpvpn.online",
+        SUPPORT_URL: "https://t.me/mlbbstorycca",
         WEB_HOST: "127.0.0.1",
         WEB_PORT: "8081",
         DATA_DIR: "./data_bot2",

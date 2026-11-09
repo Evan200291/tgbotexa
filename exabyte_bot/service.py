@@ -444,7 +444,7 @@ class Service:
                 "host": p["server_host"],
                 "link": build_ss_link(ib, pw, p["server_host"], f"Exabyte-{p['name']}-{email}"),
             })
-        if not ms and row["kind"] == "paid":
+        if not ms:
             filtered = [item for item in links if item["panel_id"] == pid]
             return filtered if filtered else [links[0]]
         return links
@@ -574,28 +574,62 @@ class Service:
                 "SELECT * FROM subscriptions WHERE user_id=?", (tg_id,)
             )
             for old in old_trials:
-                await self.xui.delete_client(self.inbound.id, old["xui_email"])
+                with contextlib.suppress(Exception):
+                    await self.xui.delete_client(self.inbound.id, old["xui_email"])
                 await self._replicate_extra_panels("delete", email=old["xui_email"])
             if old_trials:
                 async with self.db.transaction() as tx:
                     await tx.execute("DELETE FROM subscriptions WHERE user_id=?", (tg_id,))
 
-            email, password, sub_id = new_client_email(tg_id), generate_password(
-                self.inbound.method), new_sub_id()
+            sg_row = await self.db.fetchone(
+                "SELECT * FROM panels WHERE enabled=1 "
+                "ORDER BY CASE WHEN server_host LIKE '%sg%' THEN 0 ELSE 1 END, id LIMIT 1"
+            )
             quota = P.TRIAL_QUOTA_GB * GB
             expiry = to_ms(now) + P.TRIAL_DAYS * MS_PER_DAY
-            await self.xui.add_client(self.inbound.id, self._spec(
-                tg_id, email, password, sub_id, quota, expiry, limit_ip=1, comment="trial"))
-            await self._replicate_extra_panels(
-                "add", tg_id=tg_id, email=email, password=password, sub_id=sub_id,
-                quota=quota, expiry_ms=expiry, limit_ip=1, comment="trial",
-            )
+            if sg_row is not None:
+                sg_client, sg_ib = await self._get_extra_client(sg_row)
+                trial_panel_id = int(sg_row["id"])
+                email = new_client_email(tg_id)
+                password = generate_password(sg_ib.method)
+                sub_id = new_sub_id()
+                await sg_client.add_client(
+                    sg_ib.id,
+                    ClientSpec(
+                        email=email,
+                        password=password,
+                        method=client_method_for(sg_ib.method),
+                        total_bytes=quota,
+                        expiry_ms=expiry,
+                        limit_ip=1,
+                        enable=True,
+                        tg_id=tg_id,
+                        sub_id=sub_id,
+                        comment="trial",
+                    ),
+                )
+            else:
+                trial_panel_id = 0
+                email, password, sub_id = (
+                    new_client_email(tg_id),
+                    generate_password(self.inbound.method),
+                    new_sub_id(),
+                )
+                await self.xui.add_client(
+                    self.inbound.id,
+                    self._spec(
+                        tg_id, email, password, sub_id, quota, expiry, limit_ip=1, comment="trial"
+                    ),
+                )
             async with self.db.transaction() as tx:
                 await tx.execute(
                     "INSERT INTO subscriptions(user_id, kind, xui_email, password, sub_id, plan_id,"
                     " quota_bytes, used_bytes, expiry_ms, enabled, created_at, panel_id, multi_server)"
-                    " VALUES (?,?,?,?,?,?,?,0,?,1,?,0,0)",
-                    (tg_id, "trial", email, password, sub_id, "trial", quota, expiry, to_ms(now)),
+                    " VALUES (?,?,?,?,?,?,?,0,?,1,?,?,0)",
+                    (
+                        tg_id, "trial", email, password, sub_id, "trial",
+                        quota, expiry, to_ms(now), trial_panel_id,
+                    ),
                 )
                 # Claim is recorded only after the key exists, so a panel failure lets them retry.
                 await tx.execute("INSERT INTO trial_claims(user_id, claimed_at) VALUES (?,?)",
@@ -669,9 +703,17 @@ class Service:
             keys = set(sub.keys())
             cur_pid = int(sub["panel_id"]) if "panel_id" in keys and sub["panel_id"] is not None else 0
             eff_pid = panel_id if panel_id > 0 else cur_pid
-            await self.xui.update_client(ib.id, self._spec(
+            spec_obj = self._spec(
                 tg_id, sub["xui_email"], sub["password"], sub["sub_id"], new_quota,
-                expiry, plan.devices, comment=plan.id))
+                expiry, plan.devices, comment=plan.id
+            )
+            if was_trial and cur_pid > 0:
+                try:
+                    await self.xui.add_client(ib.id, spec_obj)
+                except Exception:
+                    await self.xui.update_client(ib.id, spec_obj)
+            else:
+                await self.xui.update_client(ib.id, spec_obj)
             await self._replicate_extra_panels(
                 "update", tg_id=tg_id, email=sub["xui_email"], password=sub["password"],
                 sub_id=sub["sub_id"], quota=new_quota, expiry_ms=expiry,
@@ -679,7 +721,8 @@ class Service:
             )
             if was_trial:
                 # Trial usage must not count against the paid plan.
-                await self.xui.reset_traffic(ib.id, sub["xui_email"])
+                with contextlib.suppress(Exception):
+                    await self.xui.reset_traffic(ib.id, sub["xui_email"])
                 await self._replicate_extra_panels("reset", email=sub["xui_email"])
             async with self.db.transaction() as tx:
                 await tx.execute(
@@ -1430,27 +1473,6 @@ class Service:
         self._extra_xui[pid] = client
         await self._refresh_panels_cache()
 
-        # Sync all existing active keys onto this new panel so key combinations work right away.
-        existing_emails = {c.get("email") for c in ib.clients if c.get("email")}
-        for sub in await self.db.fetchall("SELECT * FROM subscriptions"):
-            if sub["xui_email"] in existing_emails:
-                continue
-            with contextlib.suppress(Exception):
-                await client.add_client(
-                    ib.id,
-                    ClientSpec(
-                        email=sub["xui_email"],
-                        password=sub["password"],
-                        method=client_method_for(ib.method),
-                        total_bytes=int(sub["quota_bytes"]),
-                        expiry_ms=int(sub["expiry_ms"]),
-                        limit_ip=1,
-                        enable=bool(sub["enabled"]),
-                        tg_id=int(sub["user_id"]),
-                        sub_id=sub["sub_id"],
-                        comment=sub["plan_id"] or "",
-                    ),
-                )
         await self.db.audit(
             admin_id, "add_panel", str(pid),
             {"name": name, "server_host": server_host, "port": ib.port}, now_ms,
