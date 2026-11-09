@@ -1107,12 +1107,25 @@ class Service:
             assert row is not None
             # Belt and braces: make sure an expired or quota-exhausted client is disabled across panels.
             exhausted = bool(row["quota_bytes"] > 0 and row["used_bytes"] >= row["quota_bytes"])
+            flags = {f for f in (row["notified_flags"] or "").split(",") if f}
             is_enabled_on_panel = client_enabled.get(email, bool(tr and tr.enable))
-            if (row["expiry_ms"] <= now_ms or exhausted) and tr is not None and is_enabled_on_panel:
-                await self.xui.update_client(ib.id, self._spec(
-                    row["user_id"], email, row["password"], row["sub_id"],
-                    row["quota_bytes"], row["expiry_ms"], 1, enable=False,
-                    comment=row["plan_id"] or ""))
+            if (
+                row["enabled"]
+                and "panel_disabled" not in flags
+                and (row["expiry_ms"] <= now_ms or exhausted)
+                and tr is not None
+                and is_enabled_on_panel
+            ):
+                flags.add("panel_disabled")
+                await self.db.execute(
+                    "UPDATE subscriptions SET notified_flags=? WHERE id=?",
+                    (",".join(sorted(flags)), int(row["id"])),
+                )
+                with contextlib.suppress(Exception):
+                    await self.xui.update_client(ib.id, self._spec(
+                        row["user_id"], email, row["password"], row["sub_id"],
+                        row["quota_bytes"], row["expiry_ms"], 1, enable=False,
+                        comment=row["plan_id"] or ""))
                 await self._replicate_extra_panels(
                     "update", tg_id=row["user_id"], email=email, password=row["password"],
                     sub_id=row["sub_id"], quota=row["quota_bytes"], expiry_ms=row["expiry_ms"],
