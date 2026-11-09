@@ -18,7 +18,7 @@ module.exports = {
         ENV_FILE: ".env",
         BOT_DOMAIN: "tgbot.lhpvpn.online",
         WEB_HOST: "127.0.0.1",
-        WEB_PORT: "8080",
+        WEB_PORT: "8082",
         DATA_DIR: "./data",
       },
     },
