@@ -40,7 +40,7 @@ git pull --ff-only origin main
 # 3. Restart services (PM2 or Docker)
 if command -v pm2 >/dev/null 2>&1 && pm2 list | grep -q "exabyte-bot1\|outlineplus-bot2"; then
     echo "Updating Python dependencies and restarting PM2 processes..."
-    ./.venv/bin/pip install -q -e .
+    ./.venv/bin/pip install -q -r requirements.txt
     pm2 restart ecosystem.config.cjs --update-env
     pm2 save
     pm2 status

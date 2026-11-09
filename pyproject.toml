@@ -2,6 +2,18 @@
 name = "exabyte-bot"
 version = "0.1.0"
 requires-python = ">=3.11"
+dependencies = [
+    "aiogram==3.22.0",
+    "httpx==0.28.1",
+    "aiosqlite==0.21.0",
+    "pydantic-settings==2.10.1",
+    "qrcode[pil]==8.2",
+    "fastapi==0.116.1",
+    "uvicorn==0.35.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["exabyte_bot*"]
 
 [tool.ruff]
 line-length = 110
