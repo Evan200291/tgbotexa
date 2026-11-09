@@ -230,19 +230,24 @@ class Service:
         if self.server_host == "tpone.lhpvpn.online" and not any(
             p.get("server_host") == "sgsep.lhpvpn.online" for p in self._panels_cache.values()
         ):
-            with contextlib.suppress(Exception):
+            try:
                 sg_host = "sgsep.lhpvpn.online"
                 sg_path = "DV5nsBNEH" + "PECsIN95s"
+                u_name = getattr(self.xui, "username", getattr(self.xui, "_username", "exabyte"))
+                u_pass = getattr(self.xui, "password", getattr(self.xui, "_password", "exabyte"))
                 await self.add_panel(
                     0,
                     name="Singapore (SG)",
                     base_url=f"https://{sg_host}:8080/{sg_path}",
-                    username=self.xui.username,
-                    password=self.xui.password,
+                    username=u_name,
+                    password=u_pass,
                     server_host=sg_host,
                     inbound_remark="exabytedigital_sg_bot",
                     verify_tls=False,
                 )
+                log.info("automatically connected secondary panel: Singapore (SG) (%s)", sg_host)
+            except Exception as exc:
+                log.warning("Singapore (SG) panel auto-connect skipped at startup: %s", exc)
         try:
             return await self._ensure_inbound()
         except (PanelUnavailable, PanelAuthError) as exc:

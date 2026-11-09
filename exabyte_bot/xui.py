@@ -190,6 +190,8 @@ class XUIClient:
     ):
         self._username = username
         self._password = password
+        self.username = username
+        self.password = password
         self._retries = retries
         self._backoff = backoff
         self._login_lock = asyncio.Lock()
@@ -262,10 +264,10 @@ class XUIClient:
         for ib in inbounds:
             if ib.remark == remark:
                 return ib
-        # Flexible fallback (ignoring case, underscores, and hyphens)
-        norm = remark.lower().replace("_", "").replace("-", "")
+        # Flexible fallback (ignoring case, spaces, underscores, and hyphens)
+        norm = remark.lower().replace("_", "").replace("-", "").replace(" ", "")
         for ib in inbounds:
-            if ib.remark.lower().replace("_", "").replace("-", "") == norm:
+            if ib.remark.lower().replace("_", "").replace("-", "").replace(" ", "") == norm:
                 return ib
         raise InboundNotFound(f"No inbound with remark '{remark}' on the panel")
 

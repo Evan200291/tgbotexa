@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     inbound_remark: str = "exabytetgbot"
     server_host: str = "tpone.lhpvpn.online"
 
+    # Secondary 3X-UI Panel (Singapore SG Server)
+    sg_panel_base_url: SecretStr = SecretStr("")
+    sg_server_host: str = "sgsep.lhpvpn.online"
+    sg_inbound_remark: str = "exabytedigital_sg_bot"
+
     bot_domain: str = "tgbot.lhpvpn.online"
     support_url: str = "https://t.me/Exabytedigitals"
 
