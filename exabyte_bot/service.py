@@ -1028,6 +1028,11 @@ class Service:
                 return []
         ib = await self.xui.get_inbound(self.inbound.id)
         stats = traffic_from_stats(ib.client_stats)
+        client_enabled = {
+            c.get("email"): bool(c.get("enable", True))
+            for c in ib.clients
+            if c.get("email")
+        }
 
         extra_stats: list[dict[str, Any]] = []
         for p in await self.db.fetchall("SELECT * FROM panels WHERE enabled=1 ORDER BY id"):
@@ -1059,7 +1064,8 @@ class Service:
             assert row is not None
             # Belt and braces: make sure an expired or quota-exhausted client is disabled across panels.
             exhausted = bool(row["quota_bytes"] > 0 and row["used_bytes"] >= row["quota_bytes"])
-            if (row["expiry_ms"] <= now_ms or exhausted) and tr is not None and tr.enable:
+            is_enabled_on_panel = client_enabled.get(email, bool(tr and tr.enable))
+            if (row["expiry_ms"] <= now_ms or exhausted) and tr is not None and is_enabled_on_panel:
                 await self.xui.update_client(ib.id, self._spec(
                     row["user_id"], email, row["password"], row["sub_id"],
                     row["quota_bytes"], row["expiry_ms"], 1, enable=False,
@@ -1425,7 +1431,10 @@ class Service:
         await self._refresh_panels_cache()
 
         # Sync all existing active keys onto this new panel so key combinations work right away.
+        existing_emails = {c.get("email") for c in ib.clients if c.get("email")}
         for sub in await self.db.fetchall("SELECT * FROM subscriptions"):
+            if sub["xui_email"] in existing_emails:
+                continue
             with contextlib.suppress(Exception):
                 await client.add_client(
                     ib.id,
