@@ -169,6 +169,11 @@ MIGRATIONS: list[str] = [
     CREATE UNIQUE INDEX uq_orders_open_per_user ON orders(user_id)
         WHERE state = 'pending_payment';
     """,
+    # v5: reseller status and pre-added wallet balance (MMK) on users
+    """
+    ALTER TABLE users ADD COLUMN is_reseller INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN balance_mmk INTEGER NOT NULL DEFAULT 0;
+    """,
 ]
 
 

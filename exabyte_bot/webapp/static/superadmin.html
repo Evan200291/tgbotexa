@@ -99,6 +99,29 @@
     <!-- SECTION 1: USERS & ALL KEYS -->
     <section id="sec-users" class="sa-sec">
       <div class="card">
+        <h3 style="margin-top:0;">💼 Reseller အသစ်ထည့်ရန် / Balance ဖြည့်ရန် (2,400 ကျပ်/လ)</h3>
+        <div class="sa-grid-2">
+          <div class="field">
+            <label>Telegram ID</label>
+            <input id="sa-res-tgid" class="input" type="number" placeholder="123456789">
+          </div>
+          <div class="field">
+            <label>@Username</label>
+            <input id="sa-res-uname" class="input" type="text" placeholder="@reseller_user">
+          </div>
+        </div>
+        <div class="sa-grid-2">
+          <div class="field">
+            <label>ထပ်ဖြည့်ပေးမည့် Balance (ကျပ်)</label>
+            <input id="sa-res-bal" class="input" type="number" value="24000">
+          </div>
+          <div class="field" style="display:flex;align-items:flex-end;">
+            <button id="btn-sa-add-reseller" class="btn btn-primary" type="button">➕ Reseller သတ်မှတ်ပြီး Balance ဖြည့်မည်</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
           <h3 style="margin:0;">👥 သုံးစွဲသူအားလုံး နှင့် Key အသေးစိတ် ပြင်ဆင်ရန်</h3>
           <input id="user-search" class="input" type="search" placeholder="🔍 Telegram ID, @username, အမည် သို့မဟုတ် Key Email ရှာရန်..." style="max-width:360px;">
@@ -420,9 +443,12 @@
             '<div style="font-size:1.02rem;font-weight:700;">👤 ' +
             (u.first_name || "User") +
             " (<code>" + u.user_id + "</code>) • @" + u.username +
+            (u.is_reseller ? ' <span class="badge badge-active">💼 RESELLER (2,400/လ)</span>' : "") +
             (u.banned ? ' <span class="badge badge-expired">🚫 BANNED</span>' : "") +
             "</div>" +
-            '<div style="font-size:0.84rem;color:var(--text-muted);">စတင်သုံးသည့်ရက်: ' +
+            '<div style="font-size:0.84rem;color:var(--text-muted);">💰 လက်ကျန်ငွေ: <b>' +
+            (u.balance_text || "0 ကျပ်") +
+            "</b> • စတင်သုံးသည့်ရက်: " +
             u.created_at + " • နောက်ဆုံးတွေ့ချိန်: " + u.last_seen_at +
             " • အော်ဒါအရေအတွက်: <b>" + u.order_count + "</b> • Keys: <b>" + keys.length + " ခု</b></div>" +
             "</div>";
@@ -430,6 +456,29 @@
           const uBtns = document.createElement("div");
           uBtns.className = "btn-row";
           uBtns.style.marginTop = "0";
+
+          const btnResTopup = document.createElement("button");
+          btnResTopup.className = "btn btn-secondary btn-sm";
+          btnResTopup.style.width = "auto";
+          btnResTopup.textContent = "💼 +24,000 ကျပ် (Reseller)";
+          btnResTopup.onclick = async () => {
+            try {
+              const res = await api("/api/admin/resellers", {
+                method: "POST",
+                body: {
+                  telegram_id: u.user_id,
+                  username: u.username === "-" ? "" : u.username,
+                  add_balance_mmk: 24000,
+                  is_reseller: true,
+                },
+              });
+              showToast(res.message);
+              loadOverview();
+            } catch (e) {
+              showToast(e.message);
+            }
+          };
+          uBtns.appendChild(btnResTopup);
 
           const btnGrant = document.createElement("button");
           btnGrant.className = "btn btn-primary btn-sm";
@@ -778,6 +827,32 @@
             showToast(err.message);
           }
         });
+
+        const saResBtn = document.getElementById("btn-sa-add-reseller");
+        if (saResBtn) {
+          saResBtn.addEventListener("click", async () => {
+            try {
+              const tgIdVal = Number(document.getElementById("sa-res-tgid").value || 0);
+              const unameVal = document.getElementById("sa-res-uname").value.trim();
+              const balVal = Number(document.getElementById("sa-res-bal").value || 0);
+              const res = await api("/api/admin/resellers", {
+                method: "POST",
+                body: {
+                  telegram_id: tgIdVal > 0 ? tgIdVal : null,
+                  username: unameVal,
+                  add_balance_mmk: balVal,
+                  is_reseller: true,
+                },
+              });
+              showToast(res.message);
+              document.getElementById("sa-res-tgid").value = "";
+              document.getElementById("sa-res-uname").value = "";
+              loadOverview();
+            } catch (e) {
+              showToast(e.message);
+            }
+          });
+        }
 
         document.getElementById("btn-sa-refresh").addEventListener("click", () => loadOverview());
         document.getElementById("btn-sa-logout").addEventListener("click", () => {

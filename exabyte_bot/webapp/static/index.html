@@ -186,6 +186,8 @@
 
         <div class="lotus-divider" aria-hidden="true">◈</div>
 
+        <button id="btn-pay-balance" class="btn btn-primary hidden" type="button" style="margin-bottom:10px;">⚡ လက်ကျန်ငွေဖြင့် ချက်ချင်းဝယ်မည်</button>
+
         <div class="field">
           <label for="shot-input">📸 ငွေလွှဲပြေစာ Screenshot ရွေးပါ (Key ချက်ချင်း ရပါမည်):</label>
           <input id="shot-input" class="input" type="file" accept="image/*">
@@ -290,6 +292,31 @@
       <div class="card">
         <h3 style="font-size:1.05rem;">🔑 သုံးစွဲသူများ နှင့် Key ပြင်ဆင်ရန်</h3>
         <div id="adm-users-list"></div>
+      </div>
+
+      <!-- Resellers & Pre-added Wallet Balance -->
+      <div class="card">
+        <h3 style="font-size:1.05rem;">💼 Resellers & Balance စီမံရန် (2,400 ကျပ်/လ)</h3>
+        <p style="color:var(--text-muted);font-size:0.88rem;">
+          Reseller ၏ Telegram ID နှင့် @username ကို ထည့်ပြီး Balance ကြိုဖြည့်ပေးနိုင်ပါသည် (Reseller များသည် 1 လ = 2,400 ကျပ်နှုန်းဖြင့် လက်ကျန်ငွေမှ ချက်ချင်းဝယ်ယူနိုင်ပါမည်)။
+        </p>
+        <div class="btn-row">
+          <div class="field" style="flex:1;">
+            <label>Telegram ID</label>
+            <input id="res-tg-id" class="input" type="number" placeholder="123456789">
+          </div>
+          <div class="field" style="flex:1;">
+            <label>@Username</label>
+            <input id="res-username" class="input" type="text" placeholder="@reseller_user">
+          </div>
+        </div>
+        <div class="field">
+          <label>ထပ်ဖြည့်ပေးမည့် Balance (ကျပ်)</label>
+          <input id="res-balance" class="input" type="number" placeholder="24000" value="24000">
+        </div>
+        <button id="btn-add-reseller" class="btn btn-primary btn-sm" type="button">➕ Reseller ထည့်မည် / Balance ဖြည့်မည်</button>
+        <div class="lotus-divider" aria-hidden="true">◈</div>
+        <div id="adm-resellers-list"></div>
       </div>
 
       <!-- Multi-Panel 3X-UI Server Combinations -->

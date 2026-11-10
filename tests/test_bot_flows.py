@@ -231,7 +231,7 @@ async def test_full_payment_and_admin_approval_flow(svc: Service, tmp_path):
 
     await tap(USER, "nav:plans")
     plans_txt = session.last_text(USER)
-    assert "3,500 ကျပ်" in plans_txt and "10,000 ကျပ်" in plans_txt and "<s>" not in plans_txt
+    assert "20,000 ကျပ်" in plans_txt and "<s>" not in plans_txt
 
     await tap(USER, "plan:vpn_3m")
     ord_txt = session.last_text(USER)
@@ -439,7 +439,7 @@ async def test_multi_key_purchase_and_admin_unlimited_keys(svc: Service, tmp_pat
     assert len(keys_after_1) == 1
     k1 = keys_after_1[0]
 
-    # 2) Immediately (while order #1 is still awaiting_review), user clicks a plan again -> asked new vs extend
+    # 2) Immediately (while order #1 is still awaiting_review), user clicks a plan -> asked new vs extend
     await tap(USER, "plan:vpn_3m")
     assert "အတွက် ရွေးချယ်ပါ" in session.last_text(USER)
 
@@ -471,4 +471,48 @@ async def test_multi_key_purchase_and_admin_unlimited_keys(svc: Service, tmp_pat
     assert adm_ord is not None
     await tap(ADMIN, f"ord:adm_take:{adm_ord.code}")
     assert len(await svc.list_keys(ADMIN)) == 4
+
+
+async def test_reseller_admin_setup_and_balance_purchase(svc: Service, tmp_path):
+    _, session, _, send_text, _, tap = _make_harness(svc, tmp_path)
+
+    reseller_id = 333444555
+    # Admin adds reseller by Telegram ID, @username, and 24,000 MMK balance via Bot Admin UI
+    await send_text(ADMIN, "/admin")
+    await tap(ADMIN, "adm:resellers")
+    await tap(ADMIN, "adm:res_add")
+    await send_text(ADMIN, f"{reseller_id} @my_reseller 24000")
+
+    res_info = await svc.get_reseller_info(reseller_id)
+    assert res_info["is_reseller"] is True
+    assert res_info["balance_mmk"] == 24_000
+
+    # Reseller views plans -> sees 2,400 MMK/month and wallet balance banner
+    await tap(reseller_id, "nav:plans")
+    txt = session.last_text(reseller_id)
+    assert "2,400 ကျပ်" in txt
+    assert "24,000 ကျပ်" in txt
+
+    # Reseller selects 1 Month Unlimited -> order amount is 2,400 MMK
+    await tap(reseller_id, "plan:vpn_1m")
+    ord1 = await svc.open_order(reseller_id)
+    assert ord1 is not None
+    assert ord1.amount == 2_400
+
+    # Reseller pays instantly using pre-added wallet balance
+    await tap(reseller_id, f"ord:bal_pay:{ord1.code}")
+    assert await svc.get_balance(reseller_id) == 21_600
+    keys = await svc.list_keys(reseller_id)
+    assert len(keys) == 1
+    assert (await svc.get_order(ord1.code)).state == "approved"
+
+    # Reseller buys a 2nd key (3 Months = 7,200 MMK) with wallet balance
+    await tap(reseller_id, "plan:vpn_3m")
+    await tap(reseller_id, "pmode:vpn_3m:0")
+    ord2 = await svc.open_order(reseller_id)
+    assert ord2 is not None and ord2.amount == 7_200
+    await tap(reseller_id, f"ord:bal_pay:{ord2.code}")
+    assert await svc.get_balance(reseller_id) == 14_400
+    assert len(await svc.list_keys(reseller_id)) == 2
+
 

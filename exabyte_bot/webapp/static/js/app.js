@@ -401,6 +401,8 @@
     const coCard = document.getElementById("checkout-card");
     const ord = boot.open_order;
     const store = boot.store || {};
+    const st = boot.status || {};
+    const payBalBtn = document.getElementById("btn-pay-balance");
     if (ord) {
       coCard.classList.remove("hidden");
       document.getElementById("co-plan").textContent = ord.plan_name + " (" + ord.days + " ရက်)";
@@ -417,14 +419,35 @@
       numEl.textContent = "╰─ k pay " + payNum + "  🔸  " + payName;
       numEl.onclick = () => copyText(payNum, "K Pay နံပါတ်");
       document.getElementById("co-kbz-name").textContent = payName;
+
+      if (payBalBtn) {
+        if (Number(st.balance_mmk || 0) >= Number(ord.amount || 0) && Number(ord.amount || 0) > 0) {
+          payBalBtn.classList.remove("hidden");
+          payBalBtn.textContent =
+            "⚡ လက်ကျန်ငွေဖြင့် ချက်ချင်းဝယ်မည် (-" + ord.amount_text + ")";
+        } else {
+          payBalBtn.classList.add("hidden");
+        }
+      }
     } else {
       coCard.classList.add("hidden");
+      if (payBalBtn) payBalBtn.classList.add("hidden");
     }
 
     const container = document.getElementById("plans-container");
     container.innerHTML = "";
 
-    const st = boot.status || {};
+    if (st.is_reseller || Number(st.balance_mmk || 0) > 0) {
+      const resBanner = document.createElement("div");
+      resBanner.className = "card";
+      resBanner.innerHTML =
+        '<div style="font-weight:700;font-size:0.96rem;">💼 Reseller အကောင့် • 💰 လက်ကျန်ငွေ: <span style="color:var(--primary);">' +
+        (st.balance_text || "0 ကျပ်") +
+        "</span></div>" +
+        '<div style="font-size:0.86rem;color:var(--text-muted);margin-top:4px;">🏷️ Reseller အထူးနှုန်း: <b>1 လ = 2,400 ကျပ်</b> (လက်ကျန်ငွေမှ တိုက်ရိုက် ချက်ချင်းဝယ်ယူနိုင်ပါသည်)</div>';
+      container.appendChild(resBanner);
+    }
+
     const existingKeys = st.keys || [];
     const availServers = boot.available_servers || [];
 
@@ -715,6 +738,89 @@
         uList.appendChild(div);
       });
 
+      // Resellers list
+      const resList = document.getElementById("adm-resellers-list");
+      if (resList) {
+        resList.innerHTML = "";
+        const resellers = data.resellers || [];
+        if (!resellers.length) {
+          resList.innerHTML =
+            '<p style="color:var(--text-muted);font-size:0.88rem;">Reseller မရှိသေးပါ။</p>';
+        }
+        resellers.forEach((r) => {
+          const item = document.createElement("div");
+          item.style.borderTop = "1px solid var(--border)";
+          item.style.paddingTop = "10px";
+          item.style.marginTop = "10px";
+          item.innerHTML =
+            "<div><b>" +
+            (r.is_reseller ? "💼 Reseller" : "👤 User") +
+            " <code>" +
+            r.telegram_id +
+            "</code></b> (@" +
+            r.username +
+            ")</div>" +
+            '<div style="font-size:0.88rem;color:var(--text-muted);">💰 လက်ကျန်ငွေ: <b>' +
+            r.balance_text +
+            "</b> • နှုန်းထား: 2,400 ကျပ်/လ</div>";
+          const bRow = document.createElement("div");
+          bRow.className = "btn-row";
+          [
+            ["+2,400 ကျပ်", 2400],
+            ["+12,000 ကျပ်", 12000],
+            ["+24,000 ကျပ်", 24000],
+          ].forEach(([lbl, amt]) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "btn btn-secondary btn-sm";
+            b.textContent = lbl;
+            b.onclick = async () => {
+              try {
+                const resp = await api("/api/admin/resellers", {
+                  method: "POST",
+                  body: {
+                    telegram_id: r.telegram_id,
+                    username: r.username,
+                    add_balance_mmk: amt,
+                    is_reseller: true,
+                  },
+                });
+                showToast(resp.message);
+                loadAdminOverview();
+              } catch (err) {
+                showToast(err.message);
+              }
+            };
+            bRow.appendChild(b);
+          });
+          if (r.is_reseller) {
+            const bRem = document.createElement("button");
+            bRem.type = "button";
+            bRem.className = "btn btn-danger btn-sm";
+            bRem.textContent = "❌ Reseller ဖြုတ်မည်";
+            bRem.onclick = async () => {
+              try {
+                const resp = await api("/api/admin/resellers", {
+                  method: "POST",
+                  body: {
+                    telegram_id: r.telegram_id,
+                    username: r.username,
+                    is_reseller: false,
+                  },
+                });
+                showToast(resp.message);
+                loadAdminOverview();
+              } catch (err) {
+                showToast(err.message);
+              }
+            };
+            bRow.appendChild(bRem);
+          }
+          item.appendChild(bRow);
+          resList.appendChild(item);
+        });
+      }
+
       // Panels list
       const pList = document.getElementById("adm-panels-list");
       pList.innerHTML = "";
@@ -912,6 +1018,53 @@
         showToast(e.message);
       }
     });
+
+    const payBalBtn = document.getElementById("btn-pay-balance");
+    if (payBalBtn) {
+      payBalBtn.addEventListener("click", async () => {
+        const ord = state.boot && state.boot.open_order;
+        if (!ord) return;
+        haptic("medium");
+        try {
+          const res = await api("/api/orders/" + ord.code + "/pay-balance", {
+            method: "POST",
+          });
+          haptic("success");
+          showToast("✨ လက်ကျန်ငွေဖြင့် ဝယ်ယူပြီး Key ထုတ်ပေးပြီးပါပြီ!");
+          await refreshBootstrap();
+          switchTab("key");
+        } catch (e) {
+          haptic("error");
+          showToast(e.message);
+        }
+      });
+    }
+
+    const addResBtn = document.getElementById("btn-add-reseller");
+    if (addResBtn) {
+      addResBtn.addEventListener("click", async () => {
+        try {
+          const tgIdVal = Number(document.getElementById("res-tg-id").value || 0);
+          const unameVal = document.getElementById("res-username").value.trim();
+          const balVal = Number(document.getElementById("res-balance").value || 0);
+          const res = await api("/api/admin/resellers", {
+            method: "POST",
+            body: {
+              telegram_id: tgIdVal > 0 ? tgIdVal : null,
+              username: unameVal,
+              add_balance_mmk: balVal,
+              is_reseller: true,
+            },
+          });
+          showToast(res.message);
+          document.getElementById("res-tg-id").value = "";
+          document.getElementById("res-username").value = "";
+          loadAdminOverview();
+        } catch (e) {
+          showToast(e.message);
+        }
+      });
+    }
 
     document.getElementById("btn-cancel-order").addEventListener("click", async () => {
       const ord = state.boot && state.boot.open_order;

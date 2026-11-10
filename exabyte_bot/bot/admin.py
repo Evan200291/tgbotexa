@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from html import escape
 from typing import Any
 
@@ -50,6 +51,7 @@ class AdminStates(StatesGroup):
     find_user = State()
     broadcast_text = State()
     msg_user = State()
+    add_reseller = State()
 
 
 async def queue_approval_retry(svc: Service, code: str, admin_id: int) -> None:
@@ -62,6 +64,7 @@ async def queue_approval_retry(svc: Service, code: str, admin_id: int) -> None:
 async def _admin_menu_kb(svc: Service, settings: Settings | None = None) -> InlineKeyboardMarkup:
     pend = len(await svc.pending_orders())
     panels = len(await svc.list_panels())
+    resellers = len(await svc.list_resellers())
     maint = "ON" if await svc.is_maintenance() else "OFF"
     rows: list[list[InlineKeyboardButton]] = []
     if settings and settings.bot_domain:
@@ -73,6 +76,7 @@ async def _admin_menu_kb(svc: Service, settings: Settings | None = None) -> Inli
         ])
     rows.extend([
         [InlineKeyboardButton(text="➕ Key အသစ် ထုတ်ယူရန် (Instant Key)", callback_data="adm:takekey")],
+        [InlineKeyboardButton(text=f"💼 Reseller များ စီမံရန် ({resellers})", callback_data="adm:resellers")],
         [InlineKeyboardButton(text=t("btn_adm_pending", n=pend), callback_data="adm:pend")],
         [
             InlineKeyboardButton(text=t("btn_adm_stats"), callback_data="adm:stats"),
@@ -98,7 +102,9 @@ def _back_admin_kb() -> InlineKeyboardMarkup:
     )
 
 
-def _user_manage_kb(uid: int, banned: bool, *, key_enabled: bool = True) -> InlineKeyboardMarkup:
+def _user_manage_kb(
+    uid: int, banned: bool, *, key_enabled: bool = True, is_reseller: bool = False
+) -> InlineKeyboardMarkup:
     ban_btn = (
         InlineKeyboardButton(text="🔓 Unban", callback_data=f"adm:uact:unban:{uid}")
         if banned
@@ -108,6 +114,11 @@ def _user_manage_kb(uid: int, banned: bool, *, key_enabled: bool = True) -> Inli
         InlineKeyboardButton(text=t("btn_suspend_key"), callback_data=f"adm:uact:suspend:{uid}")
         if key_enabled
         else InlineKeyboardButton(text=t("btn_resume_key"), callback_data=f"adm:uact:resume:{uid}")
+    )
+    res_toggle_btn = (
+        InlineKeyboardButton(text="💼 Reseller ဖြုတ်မည်", callback_data=f"adm:uact:resoff:{uid}")
+        if is_reseller
+        else InlineKeyboardButton(text="💼 Reseller သတ်မှတ်မည်", callback_data=f"adm:uact:reson:{uid}")
     )
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -121,6 +132,12 @@ def _user_manage_kb(uid: int, banned: bool, *, key_enabled: bool = True) -> Inli
                 InlineKeyboardButton(text="Grant 1လ", callback_data=f"adm:uact:grant:{uid}:vpn_1m"),
                 InlineKeyboardButton(text="Grant 3လ", callback_data=f"adm:uact:grant:{uid}:vpn_3m"),
                 InlineKeyboardButton(text="Grant 6လ", callback_data=f"adm:uact:grant:{uid}:vpn_6m"),
+            ],
+            [
+                res_toggle_btn,
+                InlineKeyboardButton(text="💰 +2,400", callback_data=f"adm:uact:bal2400:{uid}"),
+                InlineKeyboardButton(text="💰 +12,000", callback_data=f"adm:uact:bal12000:{uid}"),
+                InlineKeyboardButton(text="💰 +24,000", callback_data=f"adm:uact:bal24000:{uid}"),
             ],
             [
                 suspend_btn,
@@ -145,16 +162,18 @@ def _format_user_card(info: dict[str, Any]) -> str:
             f"{kv.kind} ({kv.status}) • {fmt_bytes(kv.used_bytes)}/{quota} • "
             f"exp {fmt_date(kv.expiry_ms)}"
         )
-    return branded(
-        t(
-            "adm_user_card",
-            user_id=info["user_id"],
-            username=escape(str(info["username"])),
-            banned="Yes" if info["banned"] else "No",
-            key_summary=ksum,
-            order_count=info["order_count"],
-        )
+    base = t(
+        "adm_user_card",
+        user_id=info["user_id"],
+        username=escape(str(info["username"])),
+        banned="Yes" if info["banned"] else "No",
+        key_summary=ksum,
+        order_count=info["order_count"],
     )
+    res_status = "Yes (2,400 ကျပ်/လ)" if info.get("is_reseller") else "No"
+    bal_txt = info.get("balance_text") or fmt_mmk(int(info.get("balance_mmk") or 0))
+    base += f"\n• Reseller: <b>{res_status}</b>\n• လက်ကျန်ငွေ (Balance): <b>{bal_txt}</b>"
+    return branded(base)
 
 
 def build_admin_router() -> Router:
@@ -296,6 +315,146 @@ def build_admin_router() -> Router:
         await send_key_card(
             bot, chat_id, kv, svc.now(), intro=t("order_approved"), svc=svc, settings=settings
         )
+
+    @r.callback_query(F.data == "adm:resellers")
+    async def cb_admin_resellers(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
+        await cb.answer()
+        chat_id = cb.message.chat.id if cb.message else cb.from_user.id
+        resellers = await svc.list_resellers()
+        lines = [
+            "💼 <b>Reseller စာရင်း (1 လ = 2,400 ကျပ်)</b>",
+            f"စုစုပေါင်း Reseller: <b>{len(resellers)} ဦး</b>",
+            "",
+        ]
+        rows: list[list[InlineKeyboardButton]] = [
+            [
+                InlineKeyboardButton(
+                    text="➕ Reseller အသစ်ထည့်ရန် / Balance ဖြည့်ရန်",
+                    callback_data="adm:res_add",
+                )
+            ]
+        ]
+        if not resellers:
+            lines.append("<i>လက်ရှိ Reseller မရှိသေးပါ။ အောက်ပါခလုတ်ဖြင့် ထည့်သွင်းနိုင်ပါသည်။</i>")
+        else:
+            for r_item in resellers:
+                uname = f"@{r_item['username']}" if r_item["username"] != "-" else r_item["first_name"]
+                lines.append(
+                    f"• <code>{r_item['telegram_id']}</code> ({escape(str(uname))}) — "
+                    f"💰 <b>{r_item['balance_text']}</b> • 🔑 {r_item['key_count']} keys"
+                )
+                rows.append([
+                    InlineKeyboardButton(
+                        text=f"💼 {uname} ({r_item['telegram_id']}) — {r_item['balance_text']}",
+                        callback_data=f"adm:editkey:{r_item['telegram_id']}",
+                    )
+                ])
+        rows.append([InlineKeyboardButton(text=t("back"), callback_data="adm:menu")])
+        await bot.send_message(
+            chat_id,
+            branded("\n".join(lines)),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+        )
+
+    @r.callback_query(F.data == "adm:res_add")
+    async def cb_admin_reseller_add_prompt(
+        cb: CallbackQuery, state: FSMContext, bot: Bot
+    ) -> None:
+        await cb.answer()
+        await state.set_state(AdminStates.add_reseller)
+        chat_id = cb.message.chat.id if cb.message else cb.from_user.id
+        prompt = (
+            "💼 <b>Reseller အသစ်ထည့်ရန် / Balance ဖြည့်ရန်</b>\n\n"
+            "Reseller ၏ <b>Telegram ID</b>၊ <b>@username</b> နှင့် <b>ထည့်ပေးမည့် Balance (ကျပ်)</b> ကို "
+            "Space ခြား၍ ပို့ပေးပါ—\n\n"
+            "📌 <b>ပုံစံ (ဥပမာ) —</b>\n"
+            "<code>8020021670 @reseller_user 24000</code>\n"
+            "သို့မဟုတ်\n"
+            "<code>8020021670 24000</code>"
+        )
+        await bot.send_message(
+            chat_id,
+            branded(prompt),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text=t("back"), callback_data="adm:resellers")]]
+            ),
+        )
+
+    @r.message(StateFilter(AdminStates.add_reseller))
+    async def on_admin_reseller_add(
+        msg: Message, svc: Service, state: FSMContext, bot: Bot
+    ) -> None:
+        await state.clear()
+        if not msg.from_user:
+            return
+        raw = (msg.text or "").strip()
+        parts = raw.split()
+        if not parts:
+            return
+        tg_id: int | None = None
+        uname: str | None = None
+        add_bal = 0
+
+        for token in parts:
+            clean = token.strip().replace(",", "")
+            if clean.startswith("@"):
+                uname = clean.lstrip("@")
+            elif clean.isdigit():
+                val = int(clean)
+                if tg_id is None and val >= 100_000:
+                    tg_id = val
+                else:
+                    add_bal = val
+            else:
+                uname = clean.lstrip("@")
+
+        if tg_id is None and uname:
+            existing = await svc.find_user(uname)
+            if existing:
+                tg_id = int(existing["user_id"])
+
+        if tg_id is None:
+            await msg.answer(
+                branded("⚠️ Telegram ID မှန်ကန်စွာ ထည့်ပေးပါ (ဥပမာ <code>8020021670 @user 24000</code>)။"),
+                parse_mode="HTML",
+                reply_markup=_back_admin_kb(),
+            )
+            return
+
+        res_info = await svc.admin_upsert_reseller(
+            msg.from_user.id,
+            tg_id,
+            username=uname,
+            add_balance_mmk=add_bal,
+            is_reseller=True,
+        )
+        with contextlib.suppress(Exception):
+            await bot.send_message(
+                tg_id,
+                branded(
+                    "🎉 <b>သင့်အကောင့်ကို Reseller အဖြစ် သတ်မှတ်ပေးထားပါသည်!</b>\n"
+                    "• Reseller နှုန်းထား: <b>1 လ = 2,400 ကျပ်</b>\n"
+                    f"• လက်ရှိ လက်ကျန်ငွေ (Balance): <b>{res_info['balance_text']}</b>\n\n"
+                    "💳 <b>Plan ဝယ်မည်</b> မှတစ်ဆင့် လက်ကျန်ငွေဖြင့် ချက်ချင်း Key များ ထုတ်ယူနိုင်ပါပြီ ✨"
+                ),
+                parse_mode="HTML",
+            )
+
+        info = await svc.find_user(str(tg_id))
+        if info:
+            kv = info["key"]
+            await msg.answer(
+                _format_user_card(info),
+                parse_mode="HTML",
+                reply_markup=_user_manage_kb(
+                    tg_id,
+                    info["banned"],
+                    key_enabled=kv.enabled if kv else True,
+                    is_reseller=bool(info.get("is_reseller")),
+                ),
+            )
 
     @r.callback_query(F.data == "adm:pend")
     async def cb_pending(cb: CallbackQuery, svc: Service, bot: Bot, settings: Settings) -> None:
@@ -488,7 +647,10 @@ def build_admin_router() -> Router:
             _format_user_card(info),
             parse_mode="HTML",
             reply_markup=_user_manage_kb(
-                info["user_id"], info["banned"], key_enabled=kv.enabled if kv else True
+                info["user_id"],
+                info["banned"],
+                key_enabled=kv.enabled if kv else True,
+                is_reseller=bool(info.get("is_reseller")),
             ),
         )
 
@@ -509,7 +671,10 @@ def build_admin_router() -> Router:
             _format_user_card(info),
             parse_mode="HTML",
             reply_markup=_user_manage_kb(
-                info["user_id"], info["banned"], key_enabled=kv.enabled if kv else True
+                info["user_id"],
+                info["banned"],
+                key_enabled=kv.enabled if kv else True,
+                is_reseller=bool(info.get("is_reseller")),
             ),
         )
 
@@ -617,6 +782,16 @@ def build_admin_router() -> Router:
                 await svc.admin_set_banned(admin_id, uid, True)
             elif action == "unban":
                 await svc.admin_set_banned(admin_id, uid, False)
+            elif action == "reson":
+                await svc.admin_upsert_reseller(admin_id, uid, is_reseller=True)
+            elif action == "resoff":
+                await svc.admin_upsert_reseller(admin_id, uid, is_reseller=False)
+            elif action == "bal2400":
+                await svc.admin_upsert_reseller(admin_id, uid, add_balance_mmk=2_400, is_reseller=True)
+            elif action == "bal12000":
+                await svc.admin_upsert_reseller(admin_id, uid, add_balance_mmk=12_000, is_reseller=True)
+            elif action == "bal24000":
+                await svc.admin_upsert_reseller(admin_id, uid, add_balance_mmk=24_000, is_reseller=True)
             else:
                 await cb.answer()
                 return
@@ -634,7 +809,10 @@ def build_admin_router() -> Router:
                 _format_user_card(info),
                 parse_mode="HTML",
                 reply_markup=_user_manage_kb(
-                    uid, info["banned"], key_enabled=kv.enabled if kv else True
+                    uid,
+                    info["banned"],
+                    key_enabled=kv.enabled if kv else True,
+                    is_reseller=bool(info.get("is_reseller")),
                 ),
             )
 

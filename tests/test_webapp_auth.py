@@ -269,3 +269,48 @@ async def test_healthcheck_endpoint(svc: Service):
         resp = await client.get("/healthz")
         assert resp.status_code == 200
         assert resp.json() == {"status": "ok"}
+
+
+async def test_webapp_reseller_and_balance_api(svc: Service, user: int):
+    settings = Settings(
+        _env_file=None,
+        bot_token=SecretStr(FAKE_TOKEN),
+        admin_ids=[ADMIN],
+        environment="development",
+        dev_mode=True,
+    )
+    app = create_webapp(svc, settings)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        # Admin adds user as reseller with 24,000 MMK balance
+        r_add = await client.post(
+            "/api/admin/resellers",
+            headers={"x-dev-admin": "1"},
+            json={
+                "telegram_id": user,
+                "username": "aung_reseller",
+                "add_balance_mmk": 24000,
+                "is_reseller": True,
+            },
+        )
+        assert r_add.status_code == 200
+        assert r_add.json()["reseller"]["balance_mmk"] == 24000
+
+        # Customer bootstrap shows reseller prices (2,400 MMK) and 24,000 MMK balance
+        boot = (await client.get("/api/bootstrap")).json()
+        assert boot["user"]["is_reseller"] is True
+        assert boot["user"]["balance_mmk"] == 24000
+        plan_1m = next(p for p in boot["plans"] if p["id"] == "vpn_1m")
+        assert plan_1m["price_mmk"] == 2400
+
+        # Create order -> 2,400 MMK -> pay with balance
+        ord_res = (await client.post("/api/orders", json={"plan_id": "vpn_1m"})).json()
+        assert ord_res["amount"] == 2400
+
+        pay_res = await client.post(f"/api/orders/{ord_res['code']}/pay-balance")
+        assert pay_res.status_code == 200
+        st = pay_res.json()["status"]
+        assert st["balance_mmk"] == 21600
+        assert st["has_key"] is True
+

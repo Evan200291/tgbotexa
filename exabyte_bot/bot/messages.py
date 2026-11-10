@@ -153,37 +153,46 @@ def format_usage_message(kv: KeyView, now: datetime) -> str:
     return branded(body)
 
 
-def _format_plan_line(p: P.Plan) -> str:
-    price_part = f"<b>{fmt_mmk(p.price_mmk)}</b>"
+def _format_plan_line(p: P.Plan, *, is_reseller: bool = False) -> str:
+    price_part = f"<b>{fmt_mmk(p.price_for(is_reseller=is_reseller))}</b>"
     return t("plan_card_line", name=p.name, days=p.days, price_part=price_part, badge_part="")
 
 
-def format_plans_message() -> str:
+def format_plans_message(*, is_reseller: bool = False, balance_mmk: int = 0) -> str:
     lines = [t("plans_header")]
+    if is_reseller:
+        lines.insert(0, t("reseller_wallet_banner", balance=fmt_mmk(balance_mmk)).strip() + "\n")
     for p in P.plans_in("vpn"):
-        lines.append(_format_plan_line(p))
+        lines.append(_format_plan_line(p, is_reseller=is_reseller))
     gb_plans = P.plans_in("vpn_gb")
     if gb_plans:
         lines.append("")
         lines.append(t("plans_gb_header"))
         for p in gb_plans:
-            lines.append(_format_plan_line(p))
+            lines.append(_format_plan_line(p, is_reseller=is_reseller))
     return branded("\n".join(lines))
 
 
-def format_order_message(order: Order, settings: Settings) -> str:
+def format_order_message(
+    order: Order,
+    settings: Settings,
+    *,
+    is_reseller: bool = False,
+    balance_mmk: int = 0,
+) -> str:
     plan = order.plan
-    return branded(
-        t(
-            "order_created",
-            plan_name=plan.name,
-            days=plan.days,
-            code=order.code,
-            amount=fmt_mmk(order.amount),
-            kbz_number=escape(settings.kbz_number or "-"),
-            kbz_name=escape(settings.kbz_name or "-"),
-        )
+    body = t(
+        "order_created",
+        plan_name=plan.name,
+        days=plan.days,
+        code=order.code,
+        amount=fmt_mmk(order.amount),
+        kbz_number=escape(settings.kbz_number or "-"),
+        kbz_name=escape(settings.kbz_name or "-"),
     )
+    if is_reseller or balance_mmk > 0:
+        body += "\n" + t("reseller_wallet_banner", balance=fmt_mmk(balance_mmk))
+    return branded(body)
 
 
 # ---------------------------------------------------------------- keyboards
@@ -279,7 +288,7 @@ def key_server_switch_kb(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def plans_kb() -> InlineKeyboardMarkup:
+def plans_kb(*, is_reseller: bool = False) -> InlineKeyboardMarkup:
     unlim = P.plans_in("vpn")
     gb = P.plans_in("vpn_gb")
     rows: list[list[InlineKeyboardButton]] = []
@@ -287,11 +296,19 @@ def plans_kb() -> InlineKeyboardMarkup:
         for u_plan, g_plan in zip(unlim, gb, strict=False):
             rows.append([
                 InlineKeyboardButton(
-                    text=t("btn_select_plan", name=u_plan.name, price=fmt_mmk(u_plan.price_mmk)),
+                    text=t(
+                        "btn_select_plan",
+                        name=u_plan.name,
+                        price=fmt_mmk(u_plan.price_for(is_reseller=is_reseller)),
+                    ),
                     callback_data=f"plan:{u_plan.id}",
                 ),
                 InlineKeyboardButton(
-                    text=t("btn_select_plan", name=g_plan.name, price=fmt_mmk(g_plan.price_mmk)),
+                    text=t(
+                        "btn_select_plan",
+                        name=g_plan.name,
+                        price=fmt_mmk(g_plan.price_for(is_reseller=is_reseller)),
+                    ),
                     callback_data=f"plan:{g_plan.id}",
                 ),
             ])
@@ -299,7 +316,11 @@ def plans_kb() -> InlineKeyboardMarkup:
         for p in P.all_plans():
             rows.append([
                 InlineKeyboardButton(
-                    text=t("btn_select_plan", name=p.name, price=fmt_mmk(p.price_mmk)),
+                    text=t(
+                        "btn_select_plan",
+                        name=p.name,
+                        price=fmt_mmk(p.price_for(is_reseller=is_reseller)),
+                    ),
                     callback_data=f"plan:{p.id}",
                 )
             ])
@@ -342,8 +363,21 @@ def plan_server_kb(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def order_created_kb(code: str, *, is_admin: bool = False) -> InlineKeyboardMarkup:
+def order_created_kb(
+    code: str,
+    *,
+    is_admin: bool = False,
+    can_pay_balance: bool = False,
+    amount_text: str = "",
+) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+    if can_pay_balance:
+        rows.append([
+            InlineKeyboardButton(
+                text=t("btn_pay_with_balance", amount=amount_text or "2,400 ကျပ်"),
+                callback_data=f"ord:bal_pay:{code}",
+            )
+        ])
     if is_admin:
         rows.append([
             InlineKeyboardButton(

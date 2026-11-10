@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 # ---- Easy-to-edit constants -------------------------------------------------
 MONTHLY_PRICE_MMK = 3_500
+RESELLER_MONTHLY_PRICE_MMK = 2_400
 DAYS_PER_MONTH = 30
 
 TRIAL_QUOTA_GB = 5
@@ -43,6 +44,13 @@ class Plan:
     @property
     def price_mmk(self) -> int:
         return self.original_price_mmk - self.discount_mmk
+
+    @property
+    def reseller_price_mmk(self) -> int:
+        return self.months * RESELLER_MONTHLY_PRICE_MMK
+
+    def price_for(self, *, is_reseller: bool = False) -> int:
+        return self.reseller_price_mmk if is_reseller else self.price_mmk
 
     @property
     def unlimited(self) -> bool:

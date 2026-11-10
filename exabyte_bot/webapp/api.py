@@ -115,6 +115,14 @@ class BroadcastBody(BaseModel):
     text: str
 
 
+class ResellerUpsertBody(BaseModel):
+    telegram_id: int | None = None
+    username: str = ""
+    add_balance_mmk: int = 0
+    set_balance_mmk: int | None = None
+    is_reseller: bool = True
+
+
 def create_webapp(
     svc: Service, settings: Settings, *, bot: Bot | None = None
 ) -> FastAPI:
@@ -253,6 +261,7 @@ def create_webapp(
         else:
             st["sub_url"] = None
 
+        is_res = bool(st.get("is_reseller"))
         open_ord = await svc.open_order(user.id)
         plans = [
             {
@@ -261,8 +270,8 @@ def create_webapp(
                 "name": p.name,
                 "months": p.months,
                 "days": p.days,
-                "price_mmk": p.price_mmk,
-                "price_text": fmt_mmk(p.price_mmk),
+                "price_mmk": p.price_for(is_reseller=is_res),
+                "price_text": fmt_mmk(p.price_for(is_reseller=is_res)),
                 "original_price_mmk": p.original_price_mmk,
                 "original_price_text": fmt_mmk(p.original_price_mmk),
                 "discount_mmk": p.discount_mmk,
@@ -291,6 +300,9 @@ def create_webapp(
                 "first_name": user.first_name,
                 "username": user.username,
                 "is_admin": settings.is_admin(user.id),
+                "is_reseller": is_res,
+                "balance_mmk": int(st.get("balance_mmk") or 0),
+                "balance_text": str(st.get("balance_text") or "0 ကျပ်"),
             },
             "status": st,
             "available_servers": avail_servers,
@@ -404,6 +416,46 @@ def create_webapp(
         except ServiceError as e:
             raise HTTPException(status_code=400, detail=e.message()) from None
         return {"message": t("order_cancelled", code=code)}
+
+    @app.post("/api/orders/{code}/pay-balance")
+    async def api_pay_order_with_balance(
+        code: str, user: WebAppUser = Depends(current_user)
+    ) -> dict[str, Any]:
+        had_key_before = (await svc.get_key(user.id)) is not None
+        try:
+            order, kv, new_bal = await svc.pay_order_with_balance(user.id, code)
+        except ServiceError as e:
+            raise HTTPException(status_code=400, detail=e.message()) from None
+        except PanelUnavailable:
+            raise HTTPException(status_code=503, detail=t("panel_down")) from None
+
+        is_extension = (
+            order.target_sub_id is not None and order.target_sub_id > 0
+        ) or (order.target_sub_id is None and had_key_before)
+        intro = t(
+            "reseller_paid_intro",
+            code=order.code,
+            plan_name=order.plan.name,
+            balance=fmt_mmk(new_bal),
+        )
+        if bot is not None and kv is not None:
+            with contextlib.suppress(Exception):
+                if is_extension:
+                    await bot.send_message(
+                        user.id,
+                        format_key_extended_message(order, kv, svc.now()),
+                        parse_mode="HTML",
+                        reply_markup=back_home_kb(),
+                    )
+                else:
+                    await send_key_card(
+                        bot, user.id, kv, svc.now(), intro=intro, svc=svc, settings=settings
+                    )
+        return {
+            "message": intro,
+            "status": await svc.get_status(user.id),
+            "order_state": order.state,
+        }
 
     @app.post("/api/orders/{code}/screenshot")
     async def api_upload_screenshot(
@@ -652,11 +704,17 @@ def create_webapp(
                 }
                 for k in keys_list
             ]
+            u_keys = set(u.keys())
+            u_bal = int(u["balance_mmk"]) if ("balance_mmk" in u_keys and u["balance_mmk"]) else 0
+            u_res = bool(u["is_reseller"]) if ("is_reseller" in u_keys and u["is_reseller"]) else False
             users_out.append({
                 "user_id": uid,
                 "username": u["username"] or "-",
                 "first_name": u["first_name"] or "",
                 "banned": bool(u["banned"]),
+                "is_reseller": u_res,
+                "balance_mmk": u_bal,
+                "balance_text": fmt_mmk(u_bal),
                 "created_at": fmt_date(int(u["created_at"])) if u["created_at"] else "-",
                 "last_seen_at": fmt_date(int(u["last_seen_at"])) if u["last_seen_at"] else "-",
                 "order_count": int(oc["c"]) if oc else 0,
@@ -672,12 +730,56 @@ def create_webapp(
             },
             "orders": orders_out,
             "users": users_out,
+            "resellers": await svc.list_resellers(),
             "panels": await svc.list_panels(),
             "plans": [
                 {"id": p.id, "name": p.name, "days": p.days, "price_text": fmt_mmk(p.price_mmk)}
                 for p in P.all_plans()
             ],
             "store": await _effective_store_config(),
+        }
+
+    @app.post("/api/admin/resellers")
+    async def api_admin_upsert_reseller(
+        body: ResellerUpsertBody, admin: WebAppUser = Depends(require_admin)
+    ) -> dict[str, Any]:
+        tg_id = body.telegram_id
+        uname = body.username.strip().lstrip("@")
+        if (not tg_id or tg_id <= 0) and uname:
+            u_row = await svc.db.fetchone(
+                "SELECT telegram_id FROM users WHERE LOWER(username)=LOWER(?)",
+                (uname,),
+            )
+            if u_row:
+                tg_id = int(u_row["telegram_id"])
+        if not tg_id or tg_id <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Telegram ID ထည့်သွင်းပါ (သို့မဟုတ် Bot သုံးဖူးသော @username ထည့်ပါ)။",
+            )
+        res = await svc.admin_upsert_reseller(
+            admin.id,
+            tg_id,
+            username=uname or None,
+            is_reseller=body.is_reseller,
+            add_balance_mmk=body.add_balance_mmk,
+            set_balance_mmk=body.set_balance_mmk,
+        )
+        if bot is not None and body.is_reseller:
+            with contextlib.suppress(Exception):
+                await bot.send_message(
+                    tg_id,
+                    branded(
+                        f"💼 <b>သင့်အကောင့်ကို Reseller အဖြစ် သတ်မှတ်ပြီး Balance ဖြည့်ပေးပြီးပါပြီ!</b>\n\n"
+                        f"💰 လက်ရှိ လက်ကျန်ငွေ: <b>{res['balance_text']}</b>\n"
+                        f"🏷️ Reseller အထူးနှုန်း: <b>1 လ = 2,400 ကျပ်</b> ဖြင့် ချက်ချင်း ဝယ်ယူနိုင်ပါပြီ။"
+                    ),
+                    parse_mode="HTML",
+                )
+        return {
+            "message": t("adm_action_done"),
+            "reseller": res,
+            "resellers": await svc.list_resellers(),
         }
 
     @app.post("/api/admin/keys/{key_id}/edit")

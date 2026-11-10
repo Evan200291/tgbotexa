@@ -125,6 +125,15 @@ class ServerSwitchNotAllowed(ServiceError):
     key = "server_switch_not_allowed"
 
 
+class InsufficientBalance(ServiceError):
+    key = "insufficient_balance"
+
+    def __init__(self, required: int, balance: int):
+        self.required = required
+        self.balance = balance
+        super().__init__(required=fmt_mmk(required), balance=fmt_mmk(balance))
+
+
 # ---------------------------------------------------------------- views
 @dataclass
 class KeyView:
@@ -230,24 +239,19 @@ class Service:
         if self.server_host == "tpone.lhpvpn.online" and not any(
             p.get("server_host") == "sgsep.lhpvpn.online" for p in self._panels_cache.values()
         ):
-            try:
+            with contextlib.suppress(Exception):
                 sg_host = "sgsep.lhpvpn.online"
                 sg_path = "DV5nsBNEH" + "PECsIN95s"
-                u_name = getattr(self.xui, "username", getattr(self.xui, "_username", "exabyte"))
-                u_pass = getattr(self.xui, "password", getattr(self.xui, "_password", "exabyte"))
                 await self.add_panel(
                     0,
                     name="Singapore (SG)",
                     base_url=f"https://{sg_host}:8080/{sg_path}",
-                    username=u_name,
-                    password=u_pass,
+                    username=self.xui.username,
+                    password=self.xui.password,
                     server_host=sg_host,
                     inbound_remark="exabytedigital_sg_bot",
                     verify_tls=False,
                 )
-                log.info("automatically connected secondary panel: Singapore (SG) (%s)", sg_host)
-            except Exception as exc:
-                log.warning("Singapore (SG) panel auto-connect skipped at startup: %s", exc)
         try:
             return await self._ensure_inbound()
         except (PanelUnavailable, PanelAuthError) as exc:
@@ -333,14 +337,110 @@ class Service:
         now = self._now_ms()
         row = await self.db.fetchone("SELECT 1 FROM users WHERE telegram_id=?", (tg_id,))
         is_new = row is None
+        clean_uname = username.lstrip("@") if username else None
         await self.db.execute(
             "INSERT INTO users(telegram_id, username, first_name, created_at, last_seen_at) "
             "VALUES (?,?,?,?,?) ON CONFLICT(telegram_id) DO UPDATE SET "
-            "username=excluded.username, first_name=excluded.first_name, "
+            "username=COALESCE(excluded.username, users.username), "
+            "first_name=COALESCE(excluded.first_name, users.first_name), "
             "last_seen_at=excluded.last_seen_at, blocked_bot=0",
-            (tg_id, username, first_name, now, now),
+            (tg_id, clean_uname, first_name, now, now),
         )
         return is_new
+
+    async def is_reseller(self, tg_id: int) -> bool:
+        row = await self.db.fetchone("SELECT is_reseller FROM users WHERE telegram_id=?", (tg_id,))
+        return bool(row and row["is_reseller"])
+
+    async def get_balance(self, tg_id: int) -> int:
+        row = await self.db.fetchone("SELECT balance_mmk FROM users WHERE telegram_id=?", (tg_id,))
+        return int(row["balance_mmk"]) if row and row["balance_mmk"] is not None else 0
+
+    async def get_reseller_info(self, tg_id: int) -> dict[str, Any]:
+        row = await self.db.fetchone(
+            "SELECT is_reseller, balance_mmk FROM users WHERE telegram_id=?", (tg_id,)
+        )
+        is_res = bool(row and row["is_reseller"])
+        bal = int(row["balance_mmk"]) if row and row["balance_mmk"] is not None else 0
+        return {
+            "is_reseller": is_res,
+            "balance_mmk": bal,
+            "balance_text": fmt_mmk(bal),
+        }
+
+    async def list_resellers(self) -> list[dict[str, Any]]:
+        rows = await self.db.fetchall(
+            "SELECT u.*, (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = u.telegram_id) AS key_count "
+            "FROM users u WHERE u.is_reseller = 1 ORDER BY u.balance_mmk DESC, u.telegram_id ASC"
+        )
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            bal = int(r["balance_mmk"] or 0)
+            out.append({
+                "telegram_id": int(r["telegram_id"]),
+                "username": r["username"] or "-",
+                "first_name": r["first_name"] or "-",
+                "is_reseller": bool(r["is_reseller"]),
+                "balance_mmk": bal,
+                "balance_text": fmt_mmk(bal),
+                "key_count": int(r["key_count"] or 0),
+            })
+        return out
+
+    async def admin_upsert_reseller(
+        self,
+        admin_id: int,
+        tg_id: int,
+        *,
+        username: str | None = None,
+        add_balance_mmk: int = 0,
+        set_balance_mmk: int | None = None,
+        is_reseller: bool = True,
+    ) -> dict[str, Any]:
+        now = self._now_ms()
+        clean_uname = username.strip().lstrip("@") if username and username.strip() else None
+        async with self._lock(tg_id):
+            row = await self.db.fetchone("SELECT * FROM users WHERE telegram_id=?", (tg_id,))
+            cur_bal = int(row["balance_mmk"] or 0) if row else 0
+            if set_balance_mmk is not None:
+                new_bal = max(0, int(set_balance_mmk))
+            else:
+                new_bal = max(0, cur_bal + int(add_balance_mmk))
+            if row is None:
+                await self.db.execute(
+                    "INSERT INTO users(telegram_id, username, first_name, is_reseller, "
+                    "balance_mmk, created_at, last_seen_at) VALUES (?,?,?,?,?,?,?)",
+                    (tg_id, clean_uname, clean_uname or "Reseller", int(is_reseller), new_bal, now, now),
+                )
+            else:
+                await self.db.execute(
+                    "UPDATE users SET is_reseller=?, balance_mmk=?, "
+                    "username=COALESCE(?, username) WHERE telegram_id=?",
+                    (int(is_reseller), new_bal, clean_uname, tg_id),
+                )
+        await self.db.audit(
+            admin_id,
+            "upsert_reseller",
+            str(tg_id),
+            {
+                "username": clean_uname,
+                "is_reseller": is_reseller,
+                "add_balance_mmk": add_balance_mmk,
+                "set_balance_mmk": set_balance_mmk,
+                "new_balance_mmk": new_bal,
+            },
+            now,
+        )
+        updated = await self.db.fetchone("SELECT * FROM users WHERE telegram_id=?", (tg_id,))
+        assert updated is not None
+        return {
+            "telegram_id": tg_id,
+            "username": updated["username"] or "-",
+            "first_name": updated["first_name"] or "-",
+            "is_reseller": bool(updated["is_reseller"]),
+            "balance_mmk": int(updated["balance_mmk"] or 0),
+            "balance_text": fmt_mmk(int(updated["balance_mmk"] or 0)),
+        }
 
     async def is_banned(self, tg_id: int) -> bool:
         row = await self.db.fetchone("SELECT banned FROM users WHERE telegram_id=?", (tg_id,))
@@ -444,7 +544,7 @@ class Service:
                 "host": p["server_host"],
                 "link": build_ss_link(ib, pw, p["server_host"], f"Exabyte-{p['name']}-{email}"),
             })
-        if not ms:
+        if not ms and row["kind"] == "paid":
             filtered = [item for item in links if item["panel_id"] == pid]
             return filtered if filtered else [links[0]]
         return links
@@ -540,10 +640,14 @@ class Service:
                 "enabled": k.enabled,
                 "servers": await self.get_key_links(tg_id, k.id),
             })
+        res_info = await self.get_reseller_info(tg_id)
         data: dict[str, Any] = {
             "has_key": key is not None,
             "keys": keys_payload,
             "trial": await self.trial_info(tg_id),
+            "is_reseller": res_info["is_reseller"],
+            "balance_mmk": res_info["balance_mmk"],
+            "balance_text": res_info["balance_text"],
         }
         if key:
             data.update(
@@ -583,46 +687,17 @@ class Service:
                     async with self.db.transaction() as tx:
                         await tx.execute("DELETE FROM subscriptions WHERE user_id=?", (tg_id,))
 
-            sg_row = await self.db.fetchone(
-                "SELECT * FROM panels WHERE enabled=1 "
-                "ORDER BY CASE WHEN server_host LIKE '%sg%' THEN 0 ELSE 1 END, id LIMIT 1"
-            )
+            email, password, sub_id = new_client_email(tg_id), generate_password(
+                self.inbound.method), new_sub_id()
             quota = P.TRIAL_QUOTA_GB * GB
             expiry = to_ms(now) + P.TRIAL_DAYS * MS_PER_DAY
-            if sg_row is not None:
-                sg_client, sg_ib = await self._get_extra_client(sg_row)
-                trial_panel_id = int(sg_row["id"])
-                email = new_client_email(tg_id)
-                password = generate_password(sg_ib.method)
-                sub_id = new_sub_id()
-                await sg_client.add_client(
-                    sg_ib.id,
-                    ClientSpec(
-                        email=email,
-                        password=password,
-                        method=client_method_for(sg_ib.method),
-                        total_bytes=quota,
-                        expiry_ms=expiry,
-                        limit_ip=1,
-                        enable=True,
-                        tg_id=tg_id,
-                        sub_id=sub_id,
-                        comment="trial",
-                    ),
-                )
-            else:
-                trial_panel_id = 0
-                email, password, sub_id = (
-                    new_client_email(tg_id),
-                    generate_password(self.inbound.method),
-                    new_sub_id(),
-                )
-                await self.xui.add_client(
-                    self.inbound.id,
-                    self._spec(
-                        tg_id, email, password, sub_id, quota, expiry, limit_ip=1, comment="trial"
-                    ),
-                )
+            sg_pid = min(self._panels_cache.keys()) if self._panels_cache else 0
+            await self.xui.add_client(self.inbound.id, self._spec(
+                tg_id, email, password, sub_id, quota, expiry, limit_ip=1, comment="trial"))
+            await self._replicate_extra_panels(
+                "add", tg_id=tg_id, email=email, password=password, sub_id=sub_id,
+                quota=quota, expiry_ms=expiry, limit_ip=1, comment="trial",
+            )
             async with self.db.transaction() as tx:
                 cur = await tx.execute(
                     "INSERT INTO subscriptions(user_id, kind, xui_email, password, sub_id, plan_id,"
@@ -630,7 +705,7 @@ class Service:
                     " VALUES (?,?,?,?,?,?,?,0,?,1,?,?,0)",
                     (
                         tg_id, "trial", email, password, sub_id, "trial",
-                        quota, expiry, to_ms(now), trial_panel_id,
+                        quota, expiry, to_ms(now), sg_pid,
                     ),
                 )
                 created_id = int(cur.lastrowid or 0)
@@ -706,17 +781,9 @@ class Service:
             keys = set(sub.keys())
             cur_pid = int(sub["panel_id"]) if "panel_id" in keys and sub["panel_id"] is not None else 0
             eff_pid = panel_id if panel_id > 0 else cur_pid
-            spec_obj = self._spec(
+            await self.xui.update_client(ib.id, self._spec(
                 tg_id, sub["xui_email"], sub["password"], sub["sub_id"], new_quota,
-                expiry, plan.devices, comment=plan.id
-            )
-            if was_trial and cur_pid > 0:
-                try:
-                    await self.xui.add_client(ib.id, spec_obj)
-                except Exception:
-                    await self.xui.update_client(ib.id, spec_obj)
-            else:
-                await self.xui.update_client(ib.id, spec_obj)
+                expiry, plan.devices, comment=plan.id))
             await self._replicate_extra_panels(
                 "update", tg_id=tg_id, email=sub["xui_email"], password=sub["password"],
                 sub_id=sub["sub_id"], quota=new_quota, expiry_ms=expiry,
@@ -724,8 +791,7 @@ class Service:
             )
             if was_trial:
                 # Trial usage must not count against the paid plan.
-                with contextlib.suppress(Exception):
-                    await self.xui.reset_traffic(ib.id, sub["xui_email"])
+                await self.xui.reset_traffic(ib.id, sub["xui_email"])
                 await self._replicate_extra_panels("reset", email=sub["xui_email"])
             async with self.db.transaction() as tx:
                 await tx.execute(
@@ -793,6 +859,8 @@ class Service:
             existing = await self.open_order(tg_id)
             if existing:
                 raise OpenOrderExists(code=existing.code)
+            is_res = await self.is_reseller(tg_id)
+            order_amount = plan.price_for(is_reseller=is_res)
             now = self._now_ms()
             for _ in range(5):  # retry on the (astronomically rare) code collision
                 code = new_order_code()
@@ -802,7 +870,7 @@ class Service:
                             "INSERT INTO orders(code, user_id, plan_id, amount, state, created_at,"
                             " updated_at, target_sub_id, panel_id)"
                             " VALUES (?,?,?,?,'pending_payment',?,?,?,?)",
-                            (code, tg_id, plan.id, plan.price_mmk, now, now, target_sub_id, panel_id),
+                            (code, tg_id, plan.id, order_amount, now, now, target_sub_id, panel_id),
                         )
                     break
                 except aiosqlite.IntegrityError as e:
@@ -820,6 +888,47 @@ class Service:
                 (self._now_ms(), code, tg_id, *OPEN_STATES))
             if n == 0:
                 raise OrderBadState()
+
+    async def pay_order_with_balance(self, tg_id: int, code: str) -> tuple[Order, KeyView, int]:
+        """Instant checkout for Resellers using their pre-added wallet balance."""
+        await self._ensure_inbound()
+        async with self._lock(tg_id):
+            order = await self._order(code)
+            if order is None or order.user_id != tg_id:
+                raise OrderNotFound()
+            if order.state != "pending_payment":
+                raise OrderBadState()
+            cur_bal = await self.get_balance(tg_id)
+            if cur_bal < order.amount:
+                raise InsufficientBalance(required=order.amount, balance=cur_bal)
+            kv = await self._apply_plan(
+                tg_id,
+                order.plan,
+                target_sub_id=order.target_sub_id,
+                panel_id=order.panel_id,
+            )
+            now = self._now_ms()
+            new_bal = cur_bal - order.amount
+            async with self.db.transaction() as tx:
+                await tx.execute(
+                    "UPDATE users SET balance_mmk=? WHERE telegram_id=?",
+                    (new_bal, tg_id),
+                )
+                await tx.execute(
+                    "UPDATE orders SET state='approved', screenshot_file_id='reseller-wallet',"
+                    " submitted_at=?, reviewed_at=?, reviewed_by=?, updated_at=? WHERE code=?",
+                    (now, now, tg_id, now, code),
+                )
+        await self.db.audit(
+            tg_id,
+            "reseller_balance_pay",
+            code,
+            {"plan": order.plan_id, "amount": order.amount, "new_balance": new_bal},
+            self._now_ms(),
+        )
+        updated_order = await self._order(code)
+        assert updated_order is not None
+        return updated_order, kv, new_bal
 
     async def attach_screenshot(self, tg_id: int, code: str, file_id: str,
                                 file_unique_id: str, *, is_admin: bool = False) -> Order:
@@ -1077,11 +1186,6 @@ class Service:
                 return []
         ib = await self.xui.get_inbound(self.inbound.id)
         stats = traffic_from_stats(ib.client_stats)
-        client_enabled = {
-            c.get("email"): bool(c.get("enable", True))
-            for c in ib.clients
-            if c.get("email")
-        }
 
         extra_stats: list[dict[str, Any]] = []
         for p in await self.db.fetchall("SELECT * FROM panels WHERE enabled=1 ORDER BY id"):
@@ -1113,25 +1217,11 @@ class Service:
             assert row is not None
             # Belt and braces: make sure an expired or quota-exhausted client is disabled across panels.
             exhausted = bool(row["quota_bytes"] > 0 and row["used_bytes"] >= row["quota_bytes"])
-            flags = {f for f in (row["notified_flags"] or "").split(",") if f}
-            is_enabled_on_panel = client_enabled.get(email, bool(tr and tr.enable))
-            if (
-                row["enabled"]
-                and "panel_disabled" not in flags
-                and (row["expiry_ms"] <= now_ms or exhausted)
-                and tr is not None
-                and is_enabled_on_panel
-            ):
-                flags.add("panel_disabled")
-                await self.db.execute(
-                    "UPDATE subscriptions SET notified_flags=? WHERE id=?",
-                    (",".join(sorted(flags)), int(row["id"])),
-                )
-                with contextlib.suppress(Exception):
-                    await self.xui.update_client(ib.id, self._spec(
-                        row["user_id"], email, row["password"], row["sub_id"],
-                        row["quota_bytes"], row["expiry_ms"], 1, enable=False,
-                        comment=row["plan_id"] or ""))
+            if (row["expiry_ms"] <= now_ms or exhausted) and tr is not None and tr.enable:
+                await self.xui.update_client(ib.id, self._spec(
+                    row["user_id"], email, row["password"], row["sub_id"],
+                    row["quota_bytes"], row["expiry_ms"], 1, enable=False,
+                    comment=row["plan_id"] or ""))
                 await self._replicate_extra_panels(
                     "update", tg_id=row["user_id"], email=email, password=row["password"],
                     sub_id=row["sub_id"], quota=row["quota_bytes"], expiry_ms=row["expiry_ms"],
@@ -1233,10 +1323,16 @@ class Service:
             return None
         uid = int(u["telegram_id"])
         oc = await self.db.fetchone("SELECT COUNT(*) AS c FROM orders WHERE user_id=?", (uid,))
+        u_keys = set(u.keys())
+        is_res = bool(u["is_reseller"]) if "is_reseller" in u_keys else False
+        bal = int(u["balance_mmk"] or 0) if "balance_mmk" in u_keys else 0
         return {
             "user_id": uid,
             "username": u["username"] or "-",
             "banned": bool(u["banned"]),
+            "is_reseller": is_res,
+            "balance_mmk": bal,
+            "balance_text": fmt_mmk(bal),
             "key": await self.get_key(uid),
             "order_count": int(oc["c"]) if oc else 0,
         }
@@ -1492,6 +1588,24 @@ class Service:
         self._extra_xui[pid] = client
         await self._refresh_panels_cache()
 
+        # Sync all existing active keys onto this new panel so key combinations work right away.
+        for sub in await self.db.fetchall("SELECT * FROM subscriptions"):
+            with contextlib.suppress(Exception):
+                await client.add_client(
+                    ib.id,
+                    ClientSpec(
+                        email=sub["xui_email"],
+                        password=sub["password"],
+                        method=client_method_for(ib.method),
+                        total_bytes=int(sub["quota_bytes"]),
+                        expiry_ms=int(sub["expiry_ms"]),
+                        limit_ip=1,
+                        enable=bool(sub["enabled"]),
+                        tg_id=int(sub["user_id"]),
+                        sub_id=sub["sub_id"],
+                        comment=sub["plan_id"] or "",
+                    ),
+                )
         await self.db.audit(
             admin_id, "add_panel", str(pid),
             {"name": name, "server_host": server_host, "port": ib.port}, now_ms,

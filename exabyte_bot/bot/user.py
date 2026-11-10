@@ -74,8 +74,11 @@ def build_user_router() -> Router:
     r = Router(name="user")
 
     @r.message(Command("start"))
-    async def cmd_start(msg: Message, settings: Settings, state: FSMContext, bot: Bot) -> None:
+    async def cmd_start(
+        msg: Message, svc: Service, settings: Settings, state: FSMContext, bot: Bot
+    ) -> None:
         await state.clear()
+        uid = msg.from_user.id if msg.from_user else msg.chat.id
         name = (msg.from_user.first_name if (msg.from_user and msg.from_user.first_name) else "").strip()
         greeting = f"👋 မင်္ဂလာပါ <b>{name}</b>" if name else "👋 မင်္ဂလာပါ"
         await bot.send_message(
@@ -84,15 +87,26 @@ def build_user_router() -> Router:
             parse_mode="HTML",
             reply_markup=reply_menu_kb(settings),
         )
+        res = await svc.get_reseller_info(uid)
+        body = t("welcome_body")
+        if res["is_reseller"]:
+            body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
         await msg.answer(
-            branded(t("welcome_body")), parse_mode="HTML", reply_markup=main_menu_kb(settings)
+            branded(body), parse_mode="HTML", reply_markup=main_menu_kb(settings)
         )
 
     @r.message(F.text.in_({"start", "Start", "START", "🏠 ပင်မမီနူး", "ပင်မမီနူး"}))
-    async def msg_home(msg: Message, settings: Settings, state: FSMContext) -> None:
+    async def msg_home(
+        msg: Message, svc: Service, settings: Settings, state: FSMContext
+    ) -> None:
         await state.clear()
+        uid = msg.from_user.id if msg.from_user else msg.chat.id
+        res = await svc.get_reseller_info(uid)
+        body = t("welcome_body")
+        if res["is_reseller"]:
+            body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
         await msg.answer(
-            branded(t("welcome_body")), parse_mode="HTML", reply_markup=main_menu_kb(settings)
+            branded(body), parse_mode="HTML", reply_markup=main_menu_kb(settings)
         )
 
     @r.message(F.text.contains("အခမဲ့ စမ်းသပ်"))
@@ -114,9 +128,13 @@ def build_user_router() -> Router:
         await send_key_card(bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc, settings=settings)
 
     @r.message(F.text.contains("Plan ဝယ်မည်"))
-    async def msg_plans(msg: Message) -> None:
+    async def msg_plans(msg: Message, svc: Service) -> None:
+        uid = msg.from_user.id if msg.from_user else msg.chat.id
+        res = await svc.get_reseller_info(uid)
         await msg.answer(
-            format_plans_message(), parse_mode="HTML", reply_markup=plans_kb()
+            format_plans_message(is_reseller=res["is_reseller"], balance_mmk=res["balance_mmk"]),
+            parse_mode="HTML",
+            reply_markup=plans_kb(is_reseller=res["is_reseller"]),
         )
 
     @r.message(F.text.contains("ကျွန်ုပ်၏ Key") | F.text.contains("သုံးစွဲမှု"))
@@ -157,12 +175,18 @@ def build_user_router() -> Router:
         )
 
     @r.callback_query(F.data == "nav:home")
-    async def cb_home(cb: CallbackQuery, settings: Settings, state: FSMContext) -> None:
+    async def cb_home(
+        cb: CallbackQuery, svc: Service, settings: Settings, state: FSMContext
+    ) -> None:
         await state.clear()
         await cb.answer()
         if cb.message:
+            res = await svc.get_reseller_info(cb.from_user.id)
+            body = t("welcome_body")
+            if res["is_reseller"]:
+                body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
             await cb.message.answer(
-                branded(t("welcome_body")), parse_mode="HTML", reply_markup=main_menu_kb(settings)
+                branded(body), parse_mode="HTML", reply_markup=main_menu_kb(settings)
             )
 
     @r.callback_query(F.data == "nav:trial")

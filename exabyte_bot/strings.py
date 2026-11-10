@@ -124,6 +124,13 @@ S: dict[str, str] = {
     "order_not_found": "အော်ဒါ ရှာမတွေ့ပါ။",
     "order_bad_state": "ဤအော်ဒါကို ယခု ပြင်ဆင်၍ မရတော့ပါ။",
     "order_duplicate_screenshot": "💳 ဤ Screenshot ကို အခြားအော်ဒါတွင် အသုံးပြုပြီးသား ဖြစ်ပါသည်။ ငွေလွှဲပြေစာ အသစ်ကို ပို့ပေးပါ။",
+    "insufficient_balance": "💰 လက်ကျန်ငွေ မလုံလောက်ပါ။ လိုအပ်ငွေ: <b>{required}</b> • လက်ရှိ လက်ကျန်ငွေ: <b>{balance}</b>",
+    "reseller_wallet_banner": "\n💼 <b>Reseller အကောင့် (1 လ = 2,400 ကျပ်)</b>\n💰 လက်ကျန်ငွေ: <b>{balance}</b>",
+    "reseller_paid_intro": (
+        "✅ <b>အော်ဒါ <code>{code}</code> ({plan_name}) ကို Reseller လက်ကျန်ငွေမှ နှုတ်ယူ၍ Key ထုတ်ပေးပြီးပါပြီ!</b>\n"
+        "💰 လက်ကျန်ငွေ: <b>{balance}</b>"
+    ),
+    "btn_pay_with_balance": "⚡ လက်ကျန်ငွေဖြင့် ချက်ချင်းဝယ်မည် (-{amount})",
     "order_expired": "⏳ အော်ဒါ <code>{code}</code> သည် 24 နာရီ ကျော်သွားသောကြောင့် ပယ်ဖျက်လိုက်ပါပြီ။ လိုအပ်ပါက အသစ်ပြန်မှာပါ။",
     "order_approved": "✨ ငွေပေးချေမှု အတည်ပြုပြီးပါပြီ။ ကျေးဇူးတင်ပါသည်။",
     "order_approved_card": (

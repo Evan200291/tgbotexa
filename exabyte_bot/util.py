@@ -7,7 +7,7 @@ import string
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
-UTC = timezone.utc
+UTC = timezone.utc  # noqa: UP017
 
 MS_PER_DAY = 86_400_000
 GB = 1024**3

@@ -76,19 +76,38 @@ def build_payments_router() -> Router:
 
         await state.set_state(PaymentStates.waiting_screenshot)
         await state.update_data(order_code=order.code)
+        res = await svc.get_reseller_info(uid)
+        can_pay_bal = res["balance_mmk"] >= order.amount and (
+            res["is_reseller"] or res["balance_mmk"] > 0
+        )
         await bot.send_message(
             chat_id,
-            format_order_message(order, settings),
+            format_order_message(
+                order,
+                settings,
+                is_reseller=res["is_reseller"],
+                balance_mmk=res["balance_mmk"],
+            ),
             parse_mode="HTML",
-            reply_markup=order_created_kb(order.code, is_admin=is_adm),
+            reply_markup=order_created_kb(
+                order.code,
+                is_admin=is_adm,
+                can_pay_balance=can_pay_bal,
+                amount_text=order.amount_text,
+            ),
         )
 
     @r.callback_query(F.data == "nav:plans")
-    async def cb_plans(cb: CallbackQuery, bot: Bot) -> None:
+    async def cb_plans(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
         await cb.answer()
-        chat_id = cb.message.chat.id if cb.message else cb.from_user.id
+        uid = cb.from_user.id
+        chat_id = cb.message.chat.id if cb.message else uid
+        res = await svc.get_reseller_info(uid)
         await bot.send_message(
-            chat_id, format_plans_message(), parse_mode="HTML", reply_markup=plans_kb()
+            chat_id,
+            format_plans_message(is_reseller=res["is_reseller"], balance_mmk=res["balance_mmk"]),
+            parse_mode="HTML",
+            reply_markup=plans_kb(is_reseller=res["is_reseller"]),
         )
 
     @r.callback_query(F.data.startswith("plan:"))
@@ -104,6 +123,7 @@ def build_payments_router() -> Router:
         chat_id = cb.message.chat.id if cb.message else uid
         keys = await svc.list_keys(uid)
         paid_keys = [k for k in keys if k.kind == "paid"]
+        is_res = await svc.is_reseller(uid)
         if paid_keys:
             await bot.send_message(
                 chat_id,
@@ -112,7 +132,7 @@ def build_payments_router() -> Router:
                         "plan_choose_mode",
                         plan_name=plan.name,
                         days=plan.days,
-                        price=fmt_mmk(plan.price_mmk),
+                        price=fmt_mmk(plan.price_for(is_reseller=is_res)),
                     )
                 ),
                 parse_mode="HTML",
@@ -183,6 +203,34 @@ def build_payments_router() -> Router:
         chat_id = cb.message.chat.id if cb.message else uid
         await _finalize_order_creation(
             chat_id, uid, plan_id, target_sub_id, panel_id, svc, settings, state, bot
+        )
+
+    @r.callback_query(F.data.startswith("ord:bal_pay:"))
+    async def cb_reseller_balance_pay(
+        cb: CallbackQuery, svc: Service, settings: Settings, state: FSMContext, bot: Bot
+    ) -> None:
+        await cb.answer()
+        uid = cb.from_user.id
+        chat_id = cb.message.chat.id if cb.message else uid
+        code = (cb.data or "").split(":", 2)[2]
+        if not CODE_RE.match(code):
+            return
+        try:
+            order, kv, new_bal = await svc.pay_order_with_balance(uid, code)
+        except ServiceError as e:
+            await bot.send_message(
+                chat_id, branded(e.message()), parse_mode="HTML", reply_markup=back_home_kb()
+            )
+            return
+        await state.clear()
+        intro = t(
+            "reseller_paid_intro",
+            code=order.code,
+            plan_name=order.plan.name,
+            balance=fmt_mmk(new_bal),
+        )
+        await send_key_card(
+            bot, chat_id, kv, svc.now(), intro=intro, svc=svc, settings=settings
         )
 
     @r.callback_query(F.data.startswith("ord:adm_take:"))
