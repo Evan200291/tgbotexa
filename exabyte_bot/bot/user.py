@@ -14,6 +14,7 @@ from .. import packages as P
 from ..config import Settings
 from ..service import KeyView, Service, ServiceError
 from ..strings import t
+from ..util import fmt_bytes
 from ..xui import PanelUnavailable
 from .messages import (
     back_home_kb,
@@ -221,7 +222,13 @@ def build_user_router() -> Router:
         panels = [p for p in await svc.list_panels() if p["enabled"]]
         await bot.send_message(
             chat_id,
-            branded(t("server_switch_menu", email=kv.email)),
+            branded(
+                t(
+                    "server_switch_menu",
+                    email=kv.email,
+                    remaining=fmt_bytes(kv.remaining_bytes),
+                )
+            ),
             parse_mode="HTML",
             reply_markup=key_server_switch_kb(kv.id, panels, kv.panel_id),
         )
@@ -250,7 +257,11 @@ def build_user_router() -> Router:
             return
         panels = await svc.list_panels()
         srv_name = next((str(p["name"]) for p in panels if int(p["id"]) == panel_id), "Server")  # type: ignore[arg-type]
-        intro = t("server_switched_ok", server_name=srv_name)
+        intro = t(
+            "server_switched_ok",
+            server_name=srv_name,
+            remaining=fmt_bytes(kv.remaining_bytes),
+        )
         await send_key_card(bot, chat_id, kv, svc.now(), intro=intro, svc=svc, settings=settings)
 
     @r.callback_query(F.data == "key:regen")

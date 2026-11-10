@@ -15,6 +15,7 @@ from ..config import Settings
 from ..packages import get_plan
 from ..service import OpenOrderExists, Service, ServiceError
 from ..strings import t
+from ..util import fmt_mmk
 from .messages import (
     admin_order_review_kb,
     back_home_kb,
@@ -101,7 +102,14 @@ def build_payments_router() -> Router:
         if paid_keys:
             await bot.send_message(
                 chat_id,
-                branded(t("plan_choose_mode", plan_name=plan.name, days=plan.days)),
+                branded(
+                    t(
+                        "plan_choose_mode",
+                        plan_name=plan.name,
+                        days=plan.days,
+                        price=fmt_mmk(plan.price_mmk),
+                    )
+                ),
                 parse_mode="HTML",
                 reply_markup=plan_mode_kb(plan.id, keys),
             )

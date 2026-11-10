@@ -30,7 +30,7 @@ from ..bot.user import send_key_card
 from ..config import Settings, check_dev_mode
 from ..service import Service, ServiceError
 from ..strings import S, t
-from ..util import days_left, fmt_date, fmt_mmk
+from ..util import days_left, fmt_bytes, fmt_date, fmt_mmk
 from ..xui import PanelUnavailable, XUIError, qr_png
 from .auth import (
     AuthError,
@@ -328,13 +328,17 @@ def create_webapp(
         key_id: int, body: KeySwitchServerBody, user: WebAppUser = Depends(current_user)
     ) -> dict[str, Any]:
         try:
-            await svc.switch_key_server(user.id, key_id, body.panel_id)
+            kv = await svc.switch_key_server(user.id, key_id, body.panel_id)
         except ServiceError as e:
             raise HTTPException(status_code=400, detail=e.message()) from None
         panels = await svc.list_panels()
         srv_name = next((str(p["name"]) for p in panels if int(p["id"]) == body.panel_id), "Server")
         return {
-            "message": t("server_switched_ok", server_name=srv_name),
+            "message": t(
+                "server_switched_ok",
+                server_name=srv_name,
+                remaining=fmt_bytes(kv.remaining_bytes),
+            ),
             "status": await svc.get_status(user.id),
         }
 

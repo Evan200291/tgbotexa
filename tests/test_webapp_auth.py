@@ -254,7 +254,7 @@ async def test_multi_panel_key_combinations(svc: Service, user: int):
     assert (await svc.get_key(user, kv.id)).used_bytes == 1024 * 1024 * 500
 
     # Suspending key suspends on both panels
-    await svc.admin_set_key_enabled(ADMIN, user, False, key_id=kv.id)
+    await svc.admin_set_key_enabled(ADMIN, user, False)
     assert panel2.client(kv.email)["enable"] is False
 
     await svc.delete_panel(ADMIN, 1)
