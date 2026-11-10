@@ -33,8 +33,8 @@ def build_dispatcher(
     dp.callback_query.outer_middleware(guard)
 
     dp.include_router(build_admin_router())
-    dp.include_router(build_payments_router())
     dp.include_router(build_user_router())
+    dp.include_router(build_payments_router())
     dp.include_router(build_fallback_router())
     return dp
 
