@@ -216,9 +216,6 @@ async def test_miniapp_customer_and_admin_web_flows(svc: Service, clock, tmp_pat
 
 
 async def test_multi_panel_key_combinations(svc: Service, user: int):
-    # First claim a key on the primary panel
-    kv = await svc.claim_trial(user)
-
     # Spin up a second MockPanel (Server 2 SG) and add it to the service
     panel2 = MockPanel(base_path="secPath2", port=45678, method="aes-256-gcm")
     t2 = FlakyTransport(httpx.ASGITransport(app=panel2.app))
@@ -234,24 +231,32 @@ async def test_multi_panel_key_combinations(svc: Service, user: int):
         client_override=xui2,
     )
 
-    # Existing key was automatically synced onto panel2!
-    assert panel2.client(kv.email) is not None
-    links = await svc.get_key_links(user)
-    assert len(links) == 2
-    assert "sg2.lhpvpn.online:45678" in links[1]["link"]
+    # Trial key is provisioned exclusively on the secondary SG panel (panel2)
+    trial_kv = await svc.claim_trial(user)
+    assert panel2.client(trial_kv.email) is not None
+    assert trial_kv.panel_id == 1
 
-    # Subscription payload includes both servers' ss:// links
+    # Granting a Shared GB plan provisions on both panels!
+    kv = await svc.grant_plan(ADMIN, user, "vpn_gb_1m", target_sub_id=0)
+    assert panel2.client(kv.email) is not None
+    links = await svc.get_key_links(user, kv.id)
+    assert len(links) == 1
+    await svc.switch_key_server(user, kv.id, 1)
+    links_sg = await svc.get_key_links(user, kv.id)
+    assert "sg2.lhpvpn.online:45678" in links_sg[0]["link"]
+
+    # Subscription payload returns the currently selected server's ss:// link
     sub_b64 = await svc.subscription_payload_by_sub_id(kv.sub_id)
     decoded = base64.b64decode(sub_b64).decode().splitlines()
-    assert len(decoded) == 2
+    assert len(decoded) == 1
 
     # Traffic across both panels is aggregated on sync_usage()
     panel2.add_usage(kv.email, down=1024 * 1024 * 500)
     await svc.sync_usage()
-    assert (await svc.get_key(user)).used_bytes == 1024 * 1024 * 500
+    assert (await svc.get_key(user, kv.id)).used_bytes == 1024 * 1024 * 500
 
     # Suspending key suspends on both panels
-    await svc.admin_set_key_enabled(ADMIN, user, False)
+    await svc.admin_set_key_enabled(ADMIN, user, False, key_id=kv.id)
     assert panel2.client(kv.email)["enable"] is False
 
     await svc.delete_panel(ADMIN, 1)
