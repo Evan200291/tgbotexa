@@ -163,6 +163,12 @@ MIGRATIONS: list[str] = [
     ALTER TABLE orders ADD COLUMN target_sub_id INTEGER;
     ALTER TABLE orders ADD COLUMN panel_id INTEGER NOT NULL DEFAULT 0;
     """,
+    # v4: allow users to buy additional keys while previous screenshot orders await admin review
+    """
+    DROP INDEX IF EXISTS uq_orders_open_per_user;
+    CREATE UNIQUE INDEX uq_orders_open_per_user ON orders(user_id)
+        WHERE state = 'pending_payment';
+    """,
 ]
 
 

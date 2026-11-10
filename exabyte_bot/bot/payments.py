@@ -52,13 +52,18 @@ def build_payments_router() -> Router:
         state: FSMContext,
         bot: Bot,
     ) -> None:
+        is_adm = settings.is_admin(uid)
+        existing_open = await svc.open_order(uid)
+        if existing_open is not None:
+            with contextlib.suppress(Exception):
+                await svc.cancel_order(uid, existing_open.code)
         try:
             order = await svc.create_order(
                 uid, plan_id, target_sub_id=target_sub_id, panel_id=panel_id
             )
         except OpenOrderExists as e:
             open_ord = await svc.open_order(uid)
-            kb = order_created_kb(open_ord.code) if open_ord else back_home_kb()
+            kb = order_created_kb(open_ord.code, is_admin=is_adm) if open_ord else back_home_kb()
             await bot.send_message(
                 chat_id, branded(e.message()), parse_mode="HTML", reply_markup=kb
             )
@@ -75,7 +80,7 @@ def build_payments_router() -> Router:
             chat_id,
             format_order_message(order, settings),
             parse_mode="HTML",
-            reply_markup=order_created_kb(order.code),
+            reply_markup=order_created_kb(order.code, is_admin=is_adm),
         )
 
     @r.callback_query(F.data == "nav:plans")
@@ -111,7 +116,7 @@ def build_payments_router() -> Router:
                     )
                 ),
                 parse_mode="HTML",
-                reply_markup=plan_mode_kb(plan.id, keys),
+                reply_markup=plan_mode_kb(plan.id, paid_keys),
             )
             return
         panels = [p for p in await svc.list_panels() if p["enabled"]]
@@ -180,6 +185,41 @@ def build_payments_router() -> Router:
             chat_id, uid, plan_id, target_sub_id, panel_id, svc, settings, state, bot
         )
 
+    @r.callback_query(F.data.startswith("ord:adm_take:"))
+    async def cb_admin_instant_take(
+        cb: CallbackQuery, svc: Service, settings: Settings, state: FSMContext, bot: Bot
+    ) -> None:
+        uid = cb.from_user.id
+        if not settings.is_admin(uid):
+            await cb.answer()
+            return
+        await cb.answer()
+        code = (cb.data or "").split(":", 2)[2]
+        chat_id = cb.message.chat.id if cb.message else uid
+        order = await svc.get_order(code)
+        if order is None:
+            return
+        with contextlib.suppress(Exception):
+            await svc.cancel_order(uid, code)
+        await state.clear()
+        try:
+            kv = await svc.grant_plan(
+                uid,
+                uid,
+                order.plan_id,
+                target_sub_id=order.target_sub_id if order.target_sub_id is not None else 0,
+                panel_id=order.panel_id,
+            )
+        except ServiceError as e:
+            await bot.send_message(
+                chat_id, branded(e.message()), parse_mode="HTML", reply_markup=back_home_kb()
+            )
+            return
+        intro = t("order_instant_key_intro", code=order.code, plan_name=order.plan.name)
+        await send_key_card(
+            bot, chat_id, kv, svc.now(), intro=intro, svc=svc, settings=settings
+        )
+
     @r.callback_query(F.data.startswith("ord:cancel:"))
     async def cb_cancel_order(
         cb: CallbackQuery, svc: Service, state: FSMContext, bot: Bot
@@ -227,11 +267,17 @@ def build_payments_router() -> Router:
         had_key_before = (await svc.get_key(uid)) is not None
         try:
             order = await svc.attach_screenshot(
-                uid, code, best_photo.file_id, best_photo.file_unique_id
+                uid,
+                code,
+                best_photo.file_id,
+                best_photo.file_unique_id,
+                is_admin=settings.is_admin(uid),
             )
         except ServiceError as e:
             await msg.answer(
-                branded(e.message()), parse_mode="HTML", reply_markup=order_created_kb(code)
+                branded(e.message()),
+                parse_mode="HTML",
+                reply_markup=order_created_kb(code, is_admin=settings.is_admin(uid)),
             )
             return
 

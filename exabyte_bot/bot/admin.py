@@ -20,6 +20,7 @@ from aiogram.types import (
     WebAppInfo,
 )
 
+from .. import packages as P
 from ..config import Settings
 from ..service import KeyView, Service, ServiceError
 from ..strings import t
@@ -71,6 +72,7 @@ async def _admin_menu_kb(svc: Service, settings: Settings | None = None) -> Inli
             )
         ])
     rows.extend([
+        [InlineKeyboardButton(text="➕ Key အသစ် ထုတ်ယူရန် (Instant Key)", callback_data="adm:takekey")],
         [InlineKeyboardButton(text=t("btn_adm_pending", n=pend), callback_data="adm:pend")],
         [
             InlineKeyboardButton(text=t("btn_adm_stats"), callback_data="adm:stats"),
@@ -183,6 +185,116 @@ def build_admin_router() -> Router:
             branded(t("admin_menu")),
             parse_mode="HTML",
             reply_markup=await _admin_menu_kb(svc, settings),
+        )
+
+    @r.callback_query(F.data == "adm:takekey")
+    async def cb_admin_takekey_menu(cb: CallbackQuery, bot: Bot) -> None:
+        await cb.answer()
+        chat_id = cb.message.chat.id if cb.message else cb.from_user.id
+        rows: list[list[InlineKeyboardButton]] = [
+            [
+                InlineKeyboardButton(
+                    text="🎁 5 GB Trial Key (SG Server) ထုတ်မည်",
+                    callback_data="adm:tkplan:trial",
+                )
+            ]
+        ]
+        for p in P.all_plans():
+            rows.append([
+                InlineKeyboardButton(
+                    text=f"➕ {p.name} ({p.days} ရက်) — Key အသစ်ထုတ်မည်",
+                    callback_data=f"adm:tkplan:{p.id}",
+                )
+            ])
+        rows.append([InlineKeyboardButton(text=t("back"), callback_data="adm:menu")])
+        await bot.send_message(
+            chat_id,
+            branded("🔑 <b>Admin Instant Key ထုတ်ယူရန်</b>\nထုတ်ယူလိုသော Package အမျိုးအစားကို ရွေးပါ—"),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+        )
+
+    @r.callback_query(F.data.startswith("adm:tkplan:"))
+    async def cb_admin_takekey_plan(
+        cb: CallbackQuery, svc: Service, settings: Settings, bot: Bot
+    ) -> None:
+        await cb.answer()
+        uid = cb.from_user.id
+        chat_id = cb.message.chat.id if cb.message else uid
+        plan_id = (cb.data or "").split(":", 2)[2]
+        if plan_id == "trial":
+            try:
+                kv = await svc.claim_trial(uid, is_admin=True)
+            except (ServiceError, PanelUnavailable) as e:
+                msg_txt = t("panel_down") if isinstance(e, PanelUnavailable) else e.message()
+                await bot.send_message(
+                    chat_id, branded(msg_txt), parse_mode="HTML", reply_markup=_back_admin_kb()
+                )
+                return
+            intro = t("trial_ok", gb=P.TRIAL_QUOTA_GB, days=P.TRIAL_DAYS)
+            await send_key_card(bot, chat_id, kv, svc.now(), intro=intro, svc=svc, settings=settings)
+            return
+
+        plan = P.get_plan(plan_id)
+        if plan is None:
+            return
+        panels = [p for p in await svc.list_panels() if p["enabled"]]
+        if not plan.multi_server and len(panels) > 1:
+            rows = [
+                [
+                    InlineKeyboardButton(
+                        text=f"🌐 {p['name']} ({p['server_host']})",
+                        callback_data=f"adm:tksrv:{plan.id}:{int(p['id'])}",  # type: ignore[arg-type]
+                    )
+                ]
+                for p in panels
+            ]
+            rows.append([InlineKeyboardButton(text=t("back"), callback_data="adm:takekey")])
+            await bot.send_message(
+                chat_id,
+                branded(t("plan_choose_server", plan_name=plan.name)),
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+            )
+            return
+
+        try:
+            kv = await svc.grant_plan(uid, uid, plan.id, target_sub_id=0, panel_id=0)
+        except (ServiceError, PanelUnavailable) as e:
+            msg_txt = t("panel_down") if isinstance(e, PanelUnavailable) else e.message()
+            await bot.send_message(
+                chat_id, branded(msg_txt), parse_mode="HTML", reply_markup=_back_admin_kb()
+            )
+            return
+        await send_key_card(
+            bot, chat_id, kv, svc.now(), intro=t("order_approved"), svc=svc, settings=settings
+        )
+
+    @r.callback_query(F.data.startswith("adm:tksrv:"))
+    async def cb_admin_takekey_server(
+        cb: CallbackQuery, svc: Service, settings: Settings, bot: Bot
+    ) -> None:
+        await cb.answer()
+        uid = cb.from_user.id
+        chat_id = cb.message.chat.id if cb.message else uid
+        parts = (cb.data or "").split(":")
+        if len(parts) != 4:
+            return
+        plan_id = parts[2]
+        try:
+            panel_id = int(parts[3])
+        except ValueError:
+            return
+        try:
+            kv = await svc.grant_plan(uid, uid, plan_id, target_sub_id=0, panel_id=panel_id)
+        except (ServiceError, PanelUnavailable) as e:
+            msg_txt = t("panel_down") if isinstance(e, PanelUnavailable) else e.message()
+            await bot.send_message(
+                chat_id, branded(msg_txt), parse_mode="HTML", reply_markup=_back_admin_kb()
+            )
+            return
+        await send_key_card(
+            bot, chat_id, kv, svc.now(), intro=t("order_approved"), svc=svc, settings=settings
         )
 
     @r.callback_query(F.data == "adm:pend")

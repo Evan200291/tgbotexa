@@ -560,27 +560,28 @@ class Service:
         return data
 
     # ----- trial
-    async def claim_trial(self, tg_id: int) -> KeyView:
+    async def claim_trial(self, tg_id: int, *, is_admin: bool = False) -> KeyView:
         await self._ensure_inbound()
         async with self._lock(tg_id):
-            info = await self.trial_info(tg_id)
-            if info["reason"] == "paid_active":
-                raise TrialPaidActive()
             now = self.now()
-            if info["reason"] == "cooldown":
-                next_at = str(info["next_trial_at"]).replace("Z", "+00:00")
-                raise TrialTooEarly(datetime.fromisoformat(next_at), now)
+            if not is_admin:
+                info = await self.trial_info(tg_id)
+                if info["reason"] == "paid_active":
+                    raise TrialPaidActive()
+                if info["reason"] == "cooldown":
+                    next_at = str(info["next_trial_at"]).replace("Z", "+00:00")
+                    raise TrialTooEarly(datetime.fromisoformat(next_at), now)
 
-            old_trials = await self.db.fetchall(
-                "SELECT * FROM subscriptions WHERE user_id=?", (tg_id,)
-            )
-            for old in old_trials:
-                with contextlib.suppress(Exception):
-                    await self.xui.delete_client(self.inbound.id, old["xui_email"])
-                await self._replicate_extra_panels("delete", email=old["xui_email"])
-            if old_trials:
-                async with self.db.transaction() as tx:
-                    await tx.execute("DELETE FROM subscriptions WHERE user_id=?", (tg_id,))
+                old_trials = await self.db.fetchall(
+                    "SELECT * FROM subscriptions WHERE user_id=?", (tg_id,)
+                )
+                for old in old_trials:
+                    with contextlib.suppress(Exception):
+                        await self.xui.delete_client(self.inbound.id, old["xui_email"])
+                    await self._replicate_extra_panels("delete", email=old["xui_email"])
+                if old_trials:
+                    async with self.db.transaction() as tx:
+                        await tx.execute("DELETE FROM subscriptions WHERE user_id=?", (tg_id,))
 
             sg_row = await self.db.fetchone(
                 "SELECT * FROM panels WHERE enabled=1 "
@@ -623,7 +624,7 @@ class Service:
                     ),
                 )
             async with self.db.transaction() as tx:
-                await tx.execute(
+                cur = await tx.execute(
                     "INSERT INTO subscriptions(user_id, kind, xui_email, password, sub_id, plan_id,"
                     " quota_bytes, used_bytes, expiry_ms, enabled, created_at, panel_id, multi_server)"
                     " VALUES (?,?,?,?,?,?,?,0,?,1,?,?,0)",
@@ -632,11 +633,12 @@ class Service:
                         quota, expiry, to_ms(now), trial_panel_id,
                     ),
                 )
+                created_id = int(cur.lastrowid or 0)
                 # Claim is recorded only after the key exists, so a panel failure lets them retry.
                 await tx.execute("INSERT INTO trial_claims(user_id, claimed_at) VALUES (?,?)",
                                  (tg_id, to_ms(now)))
             await self.db.audit(tg_id, "trial_claim", email, None, to_ms(now))
-            key = await self.get_key(tg_id)
+            key = await self.get_key(tg_id, created_id)
             assert key is not None
             return key
 
@@ -772,7 +774,7 @@ class Service:
 
     async def open_order(self, tg_id: int) -> Order | None:
         row = await self.db.fetchone(
-            "SELECT * FROM orders WHERE user_id=? AND state IN (?,?)", (tg_id, *OPEN_STATES))
+            "SELECT * FROM orders WHERE user_id=? AND state='pending_payment'", (tg_id,))
         return Order.from_row(row) if row else None
 
     async def create_order(
@@ -820,7 +822,7 @@ class Service:
                 raise OrderBadState()
 
     async def attach_screenshot(self, tg_id: int, code: str, file_id: str,
-                                file_unique_id: str) -> Order:
+                                file_unique_id: str, *, is_admin: bool = False) -> Order:
         async with self._lock(tg_id):
             order = await self._order(code)
             if order is None or order.user_id != tg_id:
@@ -831,7 +833,10 @@ class Service:
                 "SELECT code FROM orders WHERE screenshot_unique_id=? AND code<>?",
                 (file_unique_id, code))
             if dup:
-                raise DuplicateScreenshot()
+                if is_admin:
+                    file_unique_id = f"{file_unique_id}-{code}"
+                else:
+                    raise DuplicateScreenshot()
 
             # Capture pre-order subscription state so if Admin marks Unpaid we can roll back.
             if order.target_sub_id == 0:

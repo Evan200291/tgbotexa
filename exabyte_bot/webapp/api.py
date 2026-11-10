@@ -134,6 +134,7 @@ def create_webapp(
         if x_telegram_init_data:
             try:
                 u = validate_init_data(x_telegram_init_data, token_val, now=svc.now())
+                await svc.ensure_user(u.id, u.username, u.first_name)
                 is_new = await svc.ensure_user(u.id, u.username, u.first_name)
                 if is_new and bot is not None and not settings.is_admin(u.id) and settings.admin_ids:
                     import asyncio
@@ -345,7 +346,7 @@ def create_webapp(
     @app.post("/api/trial/claim")
     async def api_claim_trial(user: WebAppUser = Depends(current_user)) -> dict[str, Any]:
         try:
-            await svc.claim_trial(user.id)
+            await svc.claim_trial(user.id, is_admin=settings.is_admin(user.id))
         except ServiceError as e:
             raise HTTPException(status_code=400, detail=e.message()) from None
         except PanelUnavailable:
@@ -369,6 +370,10 @@ def create_webapp(
     async def api_create_order(
         body: OrderCreateBody, user: WebAppUser = Depends(current_user)
     ) -> dict[str, Any]:
+        existing = await svc.open_order(user.id)
+        if existing is not None:
+            with contextlib.suppress(Exception):
+                await svc.cancel_order(user.id, existing.code)
         try:
             order = await svc.create_order(
                 user.id,
@@ -441,7 +446,9 @@ def create_webapp(
         unique_id = f"web-{digest}"
         had_key_before = (await svc.get_key(user.id)) is not None
         try:
-            order = await svc.attach_screenshot(user.id, code, unique_id, unique_id)
+            order = await svc.attach_screenshot(
+                user.id, code, unique_id, unique_id, is_admin=settings.is_admin(user.id)
+            )
         except ServiceError as e:
             raise HTTPException(status_code=400, detail=e.message()) from None
 
@@ -487,26 +494,21 @@ def create_webapp(
                 order.code, user.id, key_enabled=kv.enabled if kv else True
             )
             sent_msg = None
-            for aid in settings.admin_ids:
-                try:
-                    photo_file = BufferedInputFile(img_bytes, filename=f"slip-{order.code}.{ext}")
-                    msg_res = await bot.send_photo(
-                        chat_id=aid,
-                        photo=photo_file,
-                        caption=caption,
-                        parse_mode="HTML",
-                        reply_markup=with_kb,
+            try:
+                photo_file = BufferedInputFile(img_bytes, filename=f"slip-{order.code}.{ext}")
+                sent_msg = await bot.send_photo(
+                    chat_id=settings.admin_ids[0],
+                    photo=photo_file,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=with_kb,
+                )
+            except Exception:
+                log.exception("failed to send photo to admin; falling back to text message")
+                with contextlib.suppress(Exception):
+                    sent_msg = await bot.send_message(
+                        settings.admin_ids[0], caption, parse_mode="HTML", reply_markup=with_kb
                     )
-                    if sent_msg is None:
-                        sent_msg = msg_res
-                except Exception:
-                    log.exception("failed to send photo to admin %s; falling back to text message", aid)
-                    with contextlib.suppress(Exception):
-                        msg_res = await bot.send_message(
-                            aid, caption, parse_mode="HTML", reply_markup=with_kb
-                        )
-                        if sent_msg is None:
-                            sent_msg = msg_res
 
             if sent_msg is not None and getattr(sent_msg, "photo", None):
                 # Update orders table with real Telegram photo file_id for future retrieval

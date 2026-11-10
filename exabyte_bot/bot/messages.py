@@ -342,13 +342,20 @@ def plan_server_kb(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def order_created_kb(code: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=t("cancel"), callback_data=f"ord:cancel:{code}")],
-            [InlineKeyboardButton(text=t("back"), callback_data="nav:home")],
-        ]
-    )
+def order_created_kb(code: str, *, is_admin: bool = False) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if is_admin:
+        rows.append([
+            InlineKeyboardButton(
+                text="⚡ Admin Key တိုက်ရိုက်ထုတ်ယူမည် (Screenshot မလို)",
+                callback_data=f"ord:adm_take:{code}",
+            )
+        ])
+    rows.extend([
+        [InlineKeyboardButton(text=t("cancel"), callback_data=f"ord:cancel:{code}")],
+        [InlineKeyboardButton(text=t("back"), callback_data="nav:home")],
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def guide_menu_kb() -> InlineKeyboardMarkup:

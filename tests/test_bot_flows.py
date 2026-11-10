@@ -426,3 +426,49 @@ def test_strings_are_myanmar_unicode_not_zawgyi():
     zawgyi_markers = {"\u1033", "\u1034", "\u1060", "\u1061", "\u1062", "\u1063", "\u1064"}
     for key, val in S.items():
         assert not (set(val) & zawgyi_markers), f"Possible Zawgyi in {key}"
+
+
+async def test_multi_key_purchase_and_admin_unlimited_keys(svc: Service, tmp_path):
+    _, session, _, send_text, send_photo, tap = _make_harness(svc, tmp_path)
+
+    await send_text(USER, "/start")
+    # 1) User buys Key #1
+    await tap(USER, "plan:vpn_1m")
+    await send_photo(USER, file_id="shot-1", unique_id="uniq-1")
+    keys_after_1 = await svc.list_keys(USER)
+    assert len(keys_after_1) == 1
+    k1 = keys_after_1[0]
+
+    # 2) Immediately (while order #1 is still awaiting_review), user clicks a plan again -> asked new vs extend
+    await tap(USER, "plan:vpn_3m")
+    assert "အတွက် ရွေးချယ်ပါ" in session.last_text(USER)
+
+    # User chooses to buy a brand-new 2nd key (target_sub_id=0)
+    await tap(USER, "pmode:vpn_3m:0")
+    await send_photo(USER, file_id="shot-2", unique_id="uniq-2")
+    keys_after_2 = await svc.list_keys(USER)
+    assert len(keys_after_2) == 2
+
+    # 3) User chooses to extend Key #1
+    await tap(USER, "plan:vpn_1m")
+    await tap(USER, f"pmode:vpn_1m:{k1.id}")
+    await send_photo(USER, file_id="shot-3", unique_id="uniq-3")
+    k1_updated = await svc.get_key(USER, k1.id)
+    assert k1_updated is not None and k1_updated.expiry_ms > k1.expiry_ms
+
+    # 4) Admin can take out unlimited trial keys and paid keys without cooldown or screenshot
+    await tap(ADMIN, "nav:trial")
+    await tap(ADMIN, "nav:trial")
+    assert len(await svc.list_keys(ADMIN)) == 2
+
+    await tap(ADMIN, "adm:takekey")
+    await tap(ADMIN, "adm:tkplan:vpn_gb_1m")
+    assert len(await svc.list_keys(ADMIN)) == 3
+
+    await tap(ADMIN, "plan:vpn_1m")
+    await tap(ADMIN, "pmode:vpn_1m:0")
+    adm_ord = await svc.open_order(ADMIN)
+    assert adm_ord is not None
+    await tap(ADMIN, f"ord:adm_take:{adm_ord.code}")
+    assert len(await svc.list_keys(ADMIN)) == 4
+

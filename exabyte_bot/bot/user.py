@@ -43,7 +43,7 @@ GUIDE_INSTALL_KEYS = {
     "desktop": "guide_install_desktop",
 }
 GUIDE_ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets" / "guides"
-_GUIDE_FILE_ID_CACHE: dict[tuple[int, int], str] = {}
+_GUIDE_FILE_ID_CACHE: dict[int, str] = {}
 
 
 async def send_key_card(
@@ -96,10 +96,10 @@ def build_user_router() -> Router:
         )
 
     @r.message(F.text.contains("အခမဲ့ စမ်းသပ်"))
-    async def msg_trial(msg: Message, svc: Service, bot: Bot) -> None:
+    async def msg_trial(msg: Message, svc: Service, settings: Settings, bot: Bot) -> None:
         uid = msg.from_user.id if msg.from_user else msg.chat.id
         try:
-            kv = await svc.claim_trial(uid)
+            kv = await svc.claim_trial(uid, is_admin=settings.is_admin(uid))
         except ServiceError as e:
             await msg.answer(
                 branded(e.message()), parse_mode="HTML", reply_markup=back_home_kb()
@@ -111,7 +111,7 @@ def build_user_router() -> Router:
             )
             return
         intro = t("trial_ok", gb=P.TRIAL_QUOTA_GB, days=P.TRIAL_DAYS)
-        await send_key_card(bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc)
+        await send_key_card(bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc, settings=settings)
 
     @r.message(F.text.contains("Plan ဝယ်မည်"))
     async def msg_plans(msg: Message) -> None:
@@ -166,12 +166,12 @@ def build_user_router() -> Router:
             )
 
     @r.callback_query(F.data == "nav:trial")
-    async def cb_trial(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
+    async def cb_trial(cb: CallbackQuery, svc: Service, settings: Settings, bot: Bot) -> None:
         await cb.answer()
         uid = cb.from_user.id
         chat_id = cb.message.chat.id if cb.message else uid
         try:
-            kv = await svc.claim_trial(uid)
+            kv = await svc.claim_trial(uid, is_admin=settings.is_admin(uid))
         except ServiceError as e:
             await bot.send_message(
                 chat_id, branded(e.message()), parse_mode="HTML", reply_markup=back_home_kb()
@@ -183,7 +183,7 @@ def build_user_router() -> Router:
             )
             return
         intro = t("trial_ok", gb=P.TRIAL_QUOTA_GB, days=P.TRIAL_DAYS)
-        await send_key_card(bot, chat_id, kv, svc.now(), intro=intro, svc=svc)
+        await send_key_card(bot, chat_id, kv, svc.now(), intro=intro, svc=svc, settings=settings)
 
     @r.callback_query(F.data == "nav:key")
     async def cb_my_key(cb: CallbackQuery, svc: Service, settings: Settings, bot: Bot) -> None:
@@ -333,39 +333,25 @@ def build_user_router() -> Router:
             if not img_path.is_file():
                 continue
             cache_key = (bot.id, idx)
-            db_key = f"guide_fid_{bot.id}_{idx}"
+            setting_key = f"guide_fid_{bot.id}_{idx}"
             cached_fid = _GUIDE_FILE_ID_CACHE.get(cache_key)
             if not cached_fid:
-                cached_fid = await svc.db.get_setting(db_key)
+                cached_fid = await svc.db.get_setting(setting_key)
                 if cached_fid:
                     _GUIDE_FILE_ID_CACHE[cache_key] = cached_fid
 
-            sent = None
-            if cached_fid:
-                try:
-                    sent = await bot.send_photo(
-                        chat_id=chat_id,
-                        photo=cached_fid,
-                        caption=branded(caption),
-                        parse_mode="HTML",
-                    )
-                except Exception:
-                    _GUIDE_FILE_ID_CACHE.pop(cache_key, None)
-                    sent = None
-
-            if sent is None:
-                sent = await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=FSInputFile(img_path),
-                    caption=branded(caption),
-                    parse_mode="HTML",
-                )
-
+            photo_ref: str | FSInputFile = cached_fid or FSInputFile(img_path)
+            sent = await bot.send_photo(
+                chat_id=chat_id,
+                photo=photo_ref,
+                caption=branded(caption),
+                parse_mode="HTML",
+            )
             if sent.photo:
                 new_fid = sent.photo[-1].file_id
                 if _GUIDE_FILE_ID_CACHE.get(cache_key) != new_fid:
                     _GUIDE_FILE_ID_CACHE[cache_key] = new_fid
-                    await svc.db.set_setting(db_key, new_fid)
+                    await svc.db.set_setting(setting_key, new_fid)
 
         await bot.send_message(
             chat_id, branded(t(str_key)), parse_mode="HTML", reply_markup=guide_detail_kb()
