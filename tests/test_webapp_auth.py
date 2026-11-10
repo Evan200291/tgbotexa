@@ -240,15 +240,13 @@ async def test_multi_panel_key_combinations(svc: Service, user: int):
     kv = await svc.grant_plan(ADMIN, user, "vpn_gb_1m", target_sub_id=0)
     assert panel2.client(kv.email) is not None
     links = await svc.get_key_links(user, kv.id)
-    assert len(links) == 1
-    await svc.switch_key_server(user, kv.id, 1)
-    links_sg = await svc.get_key_links(user, kv.id)
-    assert "sg2.lhpvpn.online:45678" in links_sg[0]["link"]
+    assert len(links) == 2
+    assert "sg2.lhpvpn.online:45678" in links[1]["link"]
 
-    # Subscription payload returns the currently selected server's ss:// link
+    # Subscription payload includes both servers' ss:// links
     sub_b64 = await svc.subscription_payload_by_sub_id(kv.sub_id)
     decoded = base64.b64decode(sub_b64).decode().splitlines()
-    assert len(decoded) == 1
+    assert len(decoded) == 2
 
     # Traffic across both panels is aggregated on sync_usage()
     panel2.add_usage(kv.email, down=1024 * 1024 * 500)
