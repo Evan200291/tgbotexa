@@ -9,6 +9,7 @@ import os
 import uvicorn
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand, MenuButtonCommands
 
 from .bot.admin import build_admin_router
 from .bot.messages import STORE_NAME
@@ -70,6 +71,20 @@ async def run() -> None:  # pragma: no cover - production entrypoint
     bot = Bot(token=settings.bot_token.get_secret_value())
     me = await bot.get_me()
     log.info("started bot @%s (id=%s)", me.username, me.id)
+    await bot.set_my_commands([
+        BotCommand(command="start", description="ဆိုင်ဖွင့်ရန်"),
+        BotCommand(command="trial", description="အခမဲ့ စမ်းသုံးရန်"),
+        BotCommand(command="key", description="ကျွန်ုပ်၏ VPN Key"),
+        BotCommand(command="guide", description="Outline ချိတ်ဆက်နည်း"),
+        BotCommand(command="help", description="အကူအညီ"),
+    ])
+    await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+    await bot.set_my_description(
+        description=f"{settings.store_name} မှ ကြိုဆိုပါတယ်။ Outline VPN အခမဲ့ စမ်းသုံးရန် Start ကို နှိပ်ပါ။"
+    )
+    await bot.set_my_short_description(
+        short_description=f"{settings.store_name} · Outline VPN Key နှင့် အခမဲ့ စမ်းသပ်မှု"
+    )
 
     dp = build_dispatcher(svc, settings)
     webapp = create_webapp(svc, settings, bot=bot)

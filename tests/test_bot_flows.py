@@ -12,6 +12,7 @@ from aiogram.client.session.base import BaseSession
 from aiogram.exceptions import TelegramForbiddenError
 from aiogram.methods import (
     AnswerCallbackQuery,
+    SendAnimation,
     SendDocument,
     SendMessage,
     SendPhoto,
@@ -61,7 +62,7 @@ class RecordingSession(BaseSession):
             raise TelegramForbiddenError(method=method, message="Forbidden: bot was blocked by the user")
         if isinstance(method, AnswerCallbackQuery):
             return True
-        if isinstance(method, SendMessage | SendPhoto | SendDocument):
+        if isinstance(method, SendMessage | SendPhoto | SendDocument | SendAnimation):
             self._msg_id += 1
             cid = int(chat_id) if isinstance(chat_id, int) else USER
             return Message(
@@ -173,8 +174,11 @@ async def test_start_help_myid_and_menus(svc: Service, tmp_path):
     _, session, _, send_text, _, tap = _make_harness(svc, tmp_path)
 
     await send_text(USER, "/start")
-    assert HEADER in session.last_text(USER)
-    assert "5 GB / 7" in session.last_text(USER)
+    welcome = session.sent_to(USER)[-2]
+    assert isinstance(welcome, SendAnimation)
+    assert HEADER in welcome.caption
+    assert "5 GB / 7" in welcome.caption
+    assert welcome.reply_markup.inline_keyboard
 
     await send_text(USER, "/help")
     assert "အသုံးပြုပုံ" in session.last_text(USER)

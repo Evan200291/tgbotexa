@@ -7,6 +7,7 @@ from html import escape
 from pathlib import Path
 
 from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, FSInputFile, Message
@@ -33,13 +34,37 @@ from .messages import (
 )
 
 GUIDE_ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets" / "guides"
+WELCOME_ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets" / "welcome"
+_GUIDE_FILE_IDS: dict[int, str] = {}
 
 
-async def send_outline_guide(bot: Bot, chat_id: int, settings: Settings) -> None:
+async def send_welcome(bot: Bot, chat_id: int, svc: Service, settings: Settings,
+                       user_id: int) -> None:
+    res = await svc.get_reseller_info(user_id)
+    body = t("welcome_body", store=escape(settings.store_name))
+    if res["is_reseller"]:
+        body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
+    animation = WELCOME_ASSETS_DIR / ("outlineplus.gif" if settings.required_channel else "exabyte.gif")
+    await bot.send_animation(chat_id, FSInputFile(animation), caption=branded(body),
+                             parse_mode="HTML", reply_markup=main_menu_kb(settings))
+    await bot.send_message(chat_id, "⬇️ အောက်ပါ မီနူးကိုလည်း အသုံးပြုနိုင်ပါသည်။",
+                           reply_markup=reply_menu_kb(settings))
+
+
+async def send_outline_guide(bot: Bot, chat_id: int, settings: Settings, svc: Service) -> None:
     image = GUIDE_ASSETS_DIR / "outline-quickstart.jpg"
     if image.is_file():
-        await bot.send_photo(chat_id, FSInputFile(image), caption=t("guide_simple"),
-            parse_mode="HTML", reply_markup=guide_menu_kb(settings))
+        cached = _GUIDE_FILE_IDS.get(bot.id) or await svc.db.get_setting(f"guide_quickstart_{bot.id}")
+        try:
+            sent = await bot.send_photo(chat_id, cached or FSInputFile(image),
+                caption=t("guide_simple"), parse_mode="HTML", reply_markup=guide_menu_kb(settings))
+        except TelegramBadRequest:
+            sent = await bot.send_photo(chat_id, FSInputFile(image),
+                caption=t("guide_simple"), parse_mode="HTML", reply_markup=guide_menu_kb(settings))
+        if sent.photo:
+            file_id = sent.photo[-1].file_id
+            _GUIDE_FILE_IDS[bot.id] = file_id
+            await svc.db.set_setting(f"guide_quickstart_{bot.id}", file_id)
     else:
         await bot.send_message(chat_id, t("guide_simple"), parse_mode="HTML",
             reply_markup=guide_menu_kb(settings))
@@ -78,27 +103,15 @@ def build_user_router() -> Router:
     ) -> None:
         await state.clear()
         uid = msg.from_user.id if msg.from_user else msg.chat.id
-        res = await svc.get_reseller_info(uid)
-        body = t("welcome_body", store=escape(settings.store_name))
-        if res["is_reseller"]:
-            body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
-        await msg.answer(
-            branded(body), parse_mode="HTML", reply_markup=reply_menu_kb(settings)
-        )
+        await send_welcome(bot, msg.chat.id, svc, settings, uid)
 
     @r.message(F.text.in_({"start", "Start", "START", t("btn_home")}))
     async def msg_home(
-        msg: Message, svc: Service, settings: Settings, state: FSMContext
+        msg: Message, svc: Service, settings: Settings, state: FSMContext, bot: Bot
     ) -> None:
         await state.clear()
         uid = msg.from_user.id if msg.from_user else msg.chat.id
-        res = await svc.get_reseller_info(uid)
-        body = t("welcome_body", store=escape(settings.store_name))
-        if res["is_reseller"]:
-            body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
-        await msg.answer(
-            branded(body), parse_mode="HTML", reply_markup=reply_menu_kb(settings)
-        )
+        await send_welcome(bot, msg.chat.id, svc, settings, uid)
 
     @r.message(Command("trial"))
     @r.message(F.text == t("btn_trial"))
@@ -144,8 +157,8 @@ def build_user_router() -> Router:
 
     @r.message(Command("guide"))
     @r.message(F.text == t("btn_guide"))
-    async def msg_guide(msg: Message, bot: Bot, settings: Settings) -> None:
-        await send_outline_guide(bot, msg.chat.id, settings)
+    async def msg_guide(msg: Message, bot: Bot, settings: Settings, svc: Service) -> None:
+        await send_outline_guide(bot, msg.chat.id, settings, svc)
 
     @r.message(F.text == t("btn_support"))
     async def msg_support(msg: Message, settings: Settings) -> None:
@@ -322,9 +335,9 @@ def build_user_router() -> Router:
 
     @r.callback_query(F.data == "nav:guide")
     @r.callback_query(F.data.startswith("guide:"))
-    async def cb_guide_menu(cb: CallbackQuery, bot: Bot, settings: Settings) -> None:
+    async def cb_guide_menu(cb: CallbackQuery, bot: Bot, settings: Settings, svc: Service) -> None:
         await cb.answer()
-        await send_outline_guide(bot, cb.message.chat.id if cb.message else cb.from_user.id, settings)
+        await send_outline_guide(bot, cb.message.chat.id if cb.message else cb.from_user.id, settings, svc)
 
     @r.callback_query(F.data == "download:apk")
     async def cb_apk(cb: CallbackQuery, bot: Bot) -> None:
