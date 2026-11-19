@@ -467,7 +467,7 @@ class Service:
     def _status(self, row: aiosqlite.Row) -> str:
         if not row["enabled"]:
             return "disabled"
-        if row["expiry_ms"] <= self._now_ms():
+        if 0 < row["expiry_ms"] <= self._now_ms():
             return "expired"
         if row["quota_bytes"] and row["used_bytes"] >= row["quota_bytes"]:
             return "expired"
@@ -507,6 +507,31 @@ class Service:
     async def list_keys(self, tg_id: int) -> list[KeyView]:
         rows = await self._sub_rows(tg_id)
         return [self._view(r) for r in rows]
+
+    async def _refresh_pending_expiry(self, sub: aiosqlite.Row) -> aiosqlite.Row:
+        """Read first-use deadlines before a mutation can overwrite a panel's activation.
+
+        Call under the user's lock. An unreachable panel aborts the mutation rather
+        than resetting a potentially activated key back to an unused duration.
+        """
+        if sub["expiry_ms"] >= 0:
+            return sub
+        clients = [self.xui]
+        for panel in await self.db.fetchall("SELECT * FROM panels WHERE enabled=1"):
+            client, _ = await self._get_extra_client(panel)
+            clients.append(client)
+        deadlines = []
+        for client in clients:
+            traffic = await client.get_traffic(sub["xui_email"])
+            if traffic and traffic.expiry_ms > 0:
+                deadlines.append(traffic.expiry_ms)
+        if deadlines:
+            await self.db.execute("UPDATE subscriptions SET expiry_ms=? WHERE id=? AND expiry_ms<0",
+                                  (min(deadlines), sub["id"]))
+            row = await self._sub_row(sub["user_id"], sub["id"])
+            assert row is not None
+            return row
+        return sub
 
     async def get_key(self, tg_id: int, key_id: int | None = None) -> KeyView | None:
         row = await self._sub_row(tg_id, key_id)
@@ -634,7 +659,8 @@ class Service:
                 "quota_bytes": k.quota_bytes,
                 "used_bytes": k.used_bytes,
                 "remaining_bytes": k.remaining_bytes,
-                "expiry_at": iso(from_ms(k.expiry_ms)),
+                "expiry_at": iso(from_ms(k.expiry_ms)) if k.expiry_ms > 0 else None,
+                "pending_activation": k.expiry_ms < 0,
                 "days_left": days_left(k.expiry_ms, now),
                 "quota_exhausted": k.quota_exhausted,
                 "enabled": k.enabled,
@@ -656,7 +682,8 @@ class Service:
                 servers=await self.get_key_links(tg_id, key.id),
                 unlimited=key.unlimited, quota_bytes=key.quota_bytes, used_bytes=key.used_bytes,
                 remaining_bytes=key.remaining_bytes,
-                expiry_at=iso(from_ms(key.expiry_ms)), days_left=days_left(key.expiry_ms, now),
+                expiry_at=iso(from_ms(key.expiry_ms)) if key.expiry_ms > 0 else None,
+                pending_activation=key.expiry_ms < 0, days_left=days_left(key.expiry_ms, now),
                 quota_exhausted=key.quota_exhausted, enabled=key.enabled,
             )
         else:
@@ -690,7 +717,7 @@ class Service:
             email, password, sub_id = new_client_email(tg_id), generate_password(
                 self.inbound.method), new_sub_id()
             quota = P.TRIAL_QUOTA_GB * GB
-            expiry = to_ms(now) + P.TRIAL_DAYS * MS_PER_DAY
+            expiry = -P.TRIAL_DAYS * MS_PER_DAY
             sg_pid = min(self._panels_cache.keys()) if self._panels_cache else 0
             await self.xui.add_client(self.inbound.id, self._spec(
                 tg_id, email, password, sub_id, quota, expiry, limit_ip=1, comment="trial"))
@@ -745,7 +772,7 @@ class Service:
                 generate_password(ib.method),
                 new_sub_id(),
             )
-            expiry = now_ms + add_ms
+            expiry = -add_ms
             await self.xui.add_client(ib.id, self._spec(
                 tg_id, email, password, sub_id, plan.quota_bytes, expiry, plan.devices,
                 comment=plan.id))
@@ -768,11 +795,14 @@ class Service:
             assert key is not None
             return key
         else:
+            sub = await self._refresh_pending_expiry(sub)
             sub_row_id = int(sub["id"])
             was_trial = sub["kind"] == "trial"
             # Active paid keys extend from current expiry; trials and expired keys start now.
             base = sub["expiry_ms"] if (not was_trial and sub["expiry_ms"] > now_ms) else now_ms
             expiry = base + add_ms
+            if sub["expiry_ms"] < 0:
+                expiry = -add_ms if was_trial else sub["expiry_ms"] - add_ms
             # If extending a paid GB key with another GB plan, add the new GB balance!
             if plan.quota_bytes > 0 and not was_trial and int(sub["quota_bytes"]) > 0:
                 new_quota = int(sub["quota_bytes"]) + plan.quota_bytes
@@ -1025,6 +1055,7 @@ class Service:
             try:
                 sub = await self._sub_row(order.user_id, sub_row_id)
                 if snap.get("optimistic") and sub is not None:
+                    sub = await self._refresh_pending_expiry(sub)
                     await self.xui.update_client(
                         self.inbound.id,
                         self._spec(
@@ -1147,6 +1178,7 @@ class Service:
             sub = await self._sub_row(tg_id)
             if sub is None:
                 raise NoKey()
+            sub = await self._refresh_pending_expiry(sub)
             if sub["kind"] != "paid" or self._status(sub) != "active":
                 raise RegenNotAllowed()
             now = self.now()
@@ -1184,6 +1216,7 @@ class Service:
                 await self._ensure_inbound()
             except (PanelUnavailable, PanelAuthError):
                 return []
+        subscriptions = await self.db.fetchall("SELECT * FROM subscriptions")
         ib = await self.xui.get_inbound(self.inbound.id)
         stats = traffic_from_stats(ib.client_stats)
 
@@ -1196,38 +1229,66 @@ class Service:
 
         now_ms = self._now_ms()
         refreshed: list[KeyView] = []
-        for sub in await self.db.fetchall("SELECT * FROM subscriptions"):
-            email = sub["xui_email"]
-            tr = stats.get(email)
-            up_total = tr.up if tr else 0
-            down_total = tr.down if tr else 0
-            for es in extra_stats:
-                if etr := es.get(email):
-                    up_total += etr.up
-                    down_total += etr.down
-            if tr is not None or extra_stats:
-                async with self.db.transaction() as tx:
-                    await tx.execute("UPDATE subscriptions SET used_bytes=? WHERE id=?",
-                                     (up_total + down_total, sub["id"]))
-                    await tx.execute(
-                        "INSERT INTO usage_snapshots(user_id, xui_email, up_bytes, down_bytes,"
-                        " taken_at) VALUES (?,?,?,?,?)",
-                        (sub["user_id"], email, up_total, down_total, now_ms))
-            row = await self._sub_row(sub["user_id"], int(sub["id"]))
-            assert row is not None
-            # Belt and braces: make sure an expired or quota-exhausted client is disabled across panels.
-            exhausted = bool(row["quota_bytes"] > 0 and row["used_bytes"] >= row["quota_bytes"])
-            if (row["expiry_ms"] <= now_ms or exhausted) and tr is not None and tr.enable:
-                await self.xui.update_client(ib.id, self._spec(
-                    row["user_id"], email, row["password"], row["sub_id"],
-                    row["quota_bytes"], row["expiry_ms"], 1, enable=False,
-                    comment=row["plan_id"] or ""))
-                await self._replicate_extra_panels(
-                    "update", tg_id=row["user_id"], email=email, password=row["password"],
-                    sub_id=row["sub_id"], quota=row["quota_bytes"], expiry_ms=row["expiry_ms"],
-                    limit_ip=1, enable=False, comment=row["plan_id"] or "",
-                )
-            refreshed.append(self._view(row))
+        for sub in subscriptions:
+            async with self._lock(sub["user_id"]):
+                current = await self._sub_row(sub["user_id"], sub["id"])
+                # A purchase/admin action during the remote poll wins over stale traffic.
+                if current is None or dict(current) != dict(sub):
+                    continue
+                email = sub["xui_email"]
+                tr = stats.get(email)
+                up_total = tr.up if tr else 0
+                down_total = tr.down if tr else 0
+                for es in extra_stats:
+                    if etr := es.get(email):
+                        up_total += etr.up
+                        down_total += etr.down
+                # 3X-UI converts a negative duration to a deadline on first traffic.
+                # The earliest activated node starts the shared subscription clock.
+                remote = [s[email] for s in [stats, *extra_stats] if email in s]
+                activated = [t.expiry_ms for t in remote if t.expiry_ms > 0]
+                expiry = int(sub["expiry_ms"])
+                if expiry < 0 and activated:
+                    expiry = min(activated)
+                    await self.db.execute(
+                        "UPDATE subscriptions SET expiry_ms=? WHERE id=? AND expiry_ms<0",
+                        (expiry, sub["id"]),
+                    )
+                if expiry > 0 and any(t.expiry_ms != expiry for t in remote):
+                    spec = self._spec(
+                        sub["user_id"], email, sub["password"], sub["sub_id"],
+                        sub["quota_bytes"], expiry, 1, enable=bool(sub["enabled"]),
+                        comment=sub["plan_id"] or "",
+                    )
+                    await self.xui.update_client(ib.id, spec)
+                    await self._replicate_extra_panels(
+                        "update", tg_id=sub["user_id"], email=email, password=sub["password"],
+                        sub_id=sub["sub_id"], quota=sub["quota_bytes"], expiry_ms=expiry,
+                        limit_ip=1, enable=bool(sub["enabled"]), comment=sub["plan_id"] or "",
+                    )
+                if tr is not None or extra_stats:
+                    async with self.db.transaction() as tx:
+                        await tx.execute("UPDATE subscriptions SET used_bytes=? WHERE id=?",
+                                         (up_total + down_total, sub["id"]))
+                        await tx.execute(
+                            "INSERT INTO usage_snapshots(user_id, xui_email, up_bytes, down_bytes,"
+                            " taken_at) VALUES (?,?,?,?,?)",
+                            (sub["user_id"], email, up_total, down_total, now_ms))
+                row = await self._sub_row(sub["user_id"], int(sub["id"]))
+                assert row is not None
+                # Belt and braces: make sure an expired or quota-exhausted client is disabled across panels.
+                exhausted = bool(row["quota_bytes"] > 0 and row["used_bytes"] >= row["quota_bytes"])
+                if (0 < row["expiry_ms"] <= now_ms or exhausted) and tr is not None and tr.enable:
+                    await self.xui.update_client(ib.id, self._spec(
+                        row["user_id"], email, row["password"], row["sub_id"],
+                        row["quota_bytes"], row["expiry_ms"], 1, enable=False,
+                        comment=row["plan_id"] or ""))
+                    await self._replicate_extra_panels(
+                        "update", tg_id=row["user_id"], email=email, password=row["password"],
+                        sub_id=row["sub_id"], quota=row["quota_bytes"], expiry_ms=row["expiry_ms"],
+                        limit_ip=1, enable=False, comment=row["plan_id"] or "",
+                    )
+                refreshed.append(self._view(row))
         return refreshed
 
     # ----- notifications (each event fires once per subscription lifecycle)
@@ -1240,6 +1301,8 @@ class Service:
             "WHERE u.blocked_bot=0 AND u.banned=0 AND s.enabled=1"
         )
         for row in rows:
+            if row["expiry_ms"] < 0:
+                continue
             flags = {f for f in (row["notified_flags"] or "").split(",") if f}
             kv = self._view(row)
             rem_ms = row["expiry_ms"] - now_ms
@@ -1283,11 +1346,13 @@ class Service:
         month_ms = local_month_start_ms(now)
         u = await self.db.fetchone("SELECT COUNT(*) AS c FROM users")
         paid = await self.db.fetchone(
-            "SELECT COUNT(*) AS c FROM subscriptions WHERE kind='paid' AND enabled=1 AND expiry_ms>?",
+            "SELECT COUNT(*) AS c FROM subscriptions WHERE kind='paid' AND enabled=1"
+            " AND (expiry_ms<0 OR expiry_ms>?)",
             (now_ms,),
         )
         trial = await self.db.fetchone(
-            "SELECT COUNT(*) AS c FROM subscriptions WHERE kind='trial' AND enabled=1 AND expiry_ms>?"
+            "SELECT COUNT(*) AS c FROM subscriptions WHERE kind='trial' AND enabled=1"
+            " AND (expiry_ms<0 OR expiry_ms>?)"
             " AND (quota_bytes=0 OR used_bytes<quota_bytes)",
             (now_ms,),
         )
@@ -1345,9 +1410,12 @@ class Service:
             sub = await self._sub_row(tg_id)
             if sub is None:
                 raise NoKey()
+            sub = await self._refresh_pending_expiry(sub)
             now_ms = self._now_ms()
             base_exp = max(int(sub["expiry_ms"]), now_ms) if add_days > 0 else int(sub["expiry_ms"])
             new_exp = base_exp + add_days * MS_PER_DAY
+            if sub["expiry_ms"] < 0:
+                new_exp = min(-1, int(sub["expiry_ms"]) - add_days * MS_PER_DAY)
             cur_quota = int(sub["quota_bytes"])
             new_quota = cur_quota + add_gb * GB if (cur_quota > 0 and add_gb > 0) else cur_quota
             await self.xui.update_client(
@@ -1382,6 +1450,7 @@ class Service:
             sub = await self._sub_row(tg_id)
             if sub is None:
                 raise NoKey()
+            sub = await self._refresh_pending_expiry(sub)
             await self.xui.update_client(
                 self.inbound.id,
                 self._spec(
@@ -1440,6 +1509,10 @@ class Service:
             raise NoKey()
         tg_id = int(sub["user_id"])
         async with self._lock(tg_id):
+            sub = await self._sub_row(tg_id, key_id)
+            if sub is None:
+                raise NoKey()
+            sub = await self._refresh_pending_expiry(sub)
             now_ms = self._now_ms()
             if set_days is not None:
                 new_exp = now_ms + max(0, int(set_days)) * MS_PER_DAY
@@ -1448,6 +1521,11 @@ class Service:
                 new_exp = base_exp + add_days * MS_PER_DAY
             else:
                 new_exp = int(sub["expiry_ms"])
+            if sub["expiry_ms"] < 0:
+                if set_days is not None:
+                    new_exp = -max(1, int(set_days)) * MS_PER_DAY
+                elif add_days:
+                    new_exp = min(-1, int(sub["expiry_ms"]) - add_days * MS_PER_DAY)
 
             if set_quota_gb is not None:
                 new_quota = int(round(float(set_quota_gb) * GB)) if set_quota_gb > 0 else 0

@@ -38,6 +38,9 @@ class Settings(BaseSettings):
 
     bot_domain: str = "tgbot.lhpvpn.online"
     support_url: str = "https://t.me/Exabytedigitals"
+    store_name: str = "Exabyte Digital Store"
+    required_channel: str = ""
+    required_channel_url: str = ""
 
     kbz_number: str = "09755100121"
     kbz_name: str = "Khin Myo Lwin"

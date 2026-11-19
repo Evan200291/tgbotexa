@@ -11,6 +11,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from .bot.admin import build_admin_router
+from .bot.messages import STORE_NAME
 from .bot.middleware import GuardMiddleware
 from .bot.payments import build_payments_router
 from .bot.user import build_fallback_router, build_user_router
@@ -46,6 +47,7 @@ async def run() -> None:  # pragma: no cover - production entrypoint
     )
     env_file = os.environ.get("ENV_FILE", ".env")
     settings = Settings(_env_file=env_file)
+    STORE_NAME.set(settings.store_name)
     require_runtime_secrets(settings)
 
     db = Database(settings.db_path)

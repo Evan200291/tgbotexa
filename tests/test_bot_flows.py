@@ -174,7 +174,7 @@ async def test_start_help_myid_and_menus(svc: Service, tmp_path):
 
     await send_text(USER, "/start")
     assert HEADER in session.last_text(USER)
-    assert "လုံခြုံ မြန်ဆန်" in session.last_text(USER)
+    assert "5 GB / 7" in session.last_text(USER)
 
     await send_text(USER, "/help")
     assert "အသုံးပြုပုံ" in session.last_text(USER)
@@ -182,17 +182,18 @@ async def test_start_help_myid_and_menus(svc: Service, tmp_path):
     await send_text(USER, "/myid")
     assert str(USER) in session.last_text(USER)
 
-    await tap(USER, "nav:guide")
-    assert "ထည့်သွင်းနည်း" in session.last_text(USER)
-    for plat, word in [("android", "Android"), ("ios", "iPhone"), ("desktop", "Windows")]:
+    for route in ["nav:guide", "guide:android", "guide:ios", "guide:desktop"]:
         before_count = len(session.sent_to(USER))
-        await tap(USER, f"guide:{plat}")
+        await tap(USER, route)
         recent = session.sent_to(USER)[before_count:]
-        photos = [c for c in recent if isinstance(c, SendPhoto)]
-        assert len(photos) == 4
-        assert "1️⃣" in (photos[0].caption or "")
-        assert "4️⃣" in (photos[3].caption or "")
-        assert word in session.last_text(USER)
+        assert len(recent) == 1
+        assert isinstance(recent[0], SendPhoto)
+        assert "Confirm / Add server" in recent[0].caption
+        assert "Hiddify" not in recent[0].caption
+        assert any(
+            b.callback_data == "download:apk"
+            for row in recent[0].reply_markup.inline_keyboard for b in row
+        )
 
     await tap(USER, "nav:support")
     assert "အကူအညီ" in session.last_text(USER)
@@ -454,7 +455,7 @@ async def test_multi_key_purchase_and_admin_unlimited_keys(svc: Service, tmp_pat
     await tap(USER, f"pmode:vpn_1m:{k1.id}")
     await send_photo(USER, file_id="shot-3", unique_id="uniq-3")
     k1_updated = await svc.get_key(USER, k1.id)
-    assert k1_updated is not None and k1_updated.expiry_ms > k1.expiry_ms
+    assert k1_updated is not None and k1_updated.expiry_ms == k1.expiry_ms * 2
 
     # 4) Admin can take out unlimited trial keys and paid keys without cooldown or screenshot
     await tap(ADMIN, "nav:trial")

@@ -33,8 +33,10 @@ def clock() -> FakeClock:
 
 
 @pytest.fixture
-def panel() -> MockPanel:
-    return MockPanel()
+def panel(clock) -> MockPanel:
+    panel = MockPanel()
+    panel.now_ms = lambda: int(clock().timestamp() * 1000)
+    return panel
 
 
 @pytest.fixture

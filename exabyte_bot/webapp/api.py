@@ -5,7 +5,9 @@ from __future__ import annotations
 import base64
 import contextlib
 import hashlib
+import html
 import logging
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,7 @@ from ..bot.messages import (
 from ..bot.middleware import notify_admins_new_user
 from ..bot.user import send_key_card
 from ..config import Settings, check_dev_mode
+from ..membership import is_channel_member
 from ..service import Service, ServiceError
 from ..strings import S, t
 from ..util import days_left, fmt_bytes, fmt_date, fmt_mmk
@@ -133,6 +136,14 @@ def create_webapp(
         app.mount("/static/guides", StaticFiles(directory=str(guides_dir)), name="guides")
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+    @app.get("/downloads/outline.apk")
+    async def download_outline() -> FileResponse:
+        from ..downloads import APK_PATH
+        if not APK_PATH.is_file():
+            raise HTTPException(404, "Outline APK unavailable")
+        return FileResponse(APK_PATH, media_type="application/vnd.android.package-archive",
+                            filename="Outline-Client.apk")
+
     async def current_user(
         request: Request,
         x_telegram_init_data: str = Header(default=""),
@@ -142,7 +153,12 @@ def create_webapp(
         if x_telegram_init_data:
             try:
                 u = validate_init_data(x_telegram_init_data, token_val, now=svc.now())
-                await svc.ensure_user(u.id, u.username, u.first_name)
+                if not await is_channel_member(bot, settings, u.id):
+                    raise HTTPException(status_code=403, detail={
+                        "code": "join_required", "message": t("join_required"),
+                        "join_url": settings.required_channel_url or
+                        f"https://t.me/{settings.required_channel.lstrip('@')}",
+                    })
                 is_new = await svc.ensure_user(u.id, u.username, u.first_name)
                 if is_new and bot is not None and not settings.is_admin(u.id) and settings.admin_ids:
                     import asyncio
@@ -172,6 +188,12 @@ def create_webapp(
                 u = verify_admin_web_token(effective_admin_token, token_val, now=svc.now())
                 if not settings.is_admin(u.id):
                     raise AuthError("Not an admin ID")
+                if not await is_channel_member(bot, settings, u.id):
+                    raise HTTPException(status_code=403, detail={
+                        "code": "join_required", "message": t("join_required"),
+                        "join_url": settings.required_channel_url or
+                        f"https://t.me/{settings.required_channel.lstrip('@')}",
+                    })
                 await svc.ensure_user(u.id, u.username, u.first_name)
                 return u
             except AuthError as e:
@@ -203,6 +225,7 @@ def create_webapp(
         tagline = await svc.db.get_setting("custom_tagline") or t("tagline")
         return {
             "kbz_number": kbz_num,
+            "name": settings.store_name,
             "kbz_name": kbz_nm,
             "support_url": sup_url,
             "tagline": tagline,
@@ -218,8 +241,13 @@ def create_webapp(
 
     # ---------------- HTML pages & Subscription URL ----------------
     @app.get("/", response_class=HTMLResponse)
-    async def index_page() -> FileResponse:
-        return FileResponse(STATIC_DIR / "index.html")
+    async def index_page() -> HTMLResponse:
+        content = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        content = content.replace("Exabyte Digital Store", html.escape(settings.store_name))
+        if settings.store_name == "Outline Plus MM":
+            content = content.replace("/static/brand/logo.svg", "/static/brand/outlineplus.svg")
+            content = content.replace("/static/brand/favicon.svg", "/static/brand/outlineplus.svg")
+        return HTMLResponse(content)
 
     @app.get("/admin", response_class=HTMLResponse)
     @app.get("/superadmin", response_class=HTMLResponse)
@@ -953,7 +981,6 @@ def create_webapp(
     async def api_admin_broadcast(
         body: BroadcastBody, admin: WebAppUser = Depends(require_admin)
     ) -> dict[str, Any]:
-        from html import escape
 
         txt = body.text.strip()
         if not txt:

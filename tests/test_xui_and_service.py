@@ -135,7 +135,7 @@ async def test_trial_claim_creates_panel_client(svc: Service, user, panel: MockP
     c = panel.client(key.email)
     assert c is not None
     assert c["totalGB"] == 5 * GB and c["limitIp"] == 1 and c["tgId"] == USER
-    assert c["expiryTime"] == to_ms(clock()) + 7 * MS_PER_DAY
+    assert c["expiryTime"] == -7 * MS_PER_DAY
     assert key.email.startswith(f"tg{USER}-") and key.status == "active"
     assert key.link.startswith("ss://") and "vpn.example.test:34567" in key.link
 
@@ -169,7 +169,7 @@ async def test_reclaim_after_7_days_issues_new_key_and_resets_usage(svc, user, p
     assert new.email != old.email and new.password != old.password
     assert panel.client(old.email) is None  # old key revoked on the panel
     assert new.used_bytes == 0
-    assert new.expiry_ms == to_ms(clock()) + 7 * MS_PER_DAY
+    assert new.expiry_ms == -7 * MS_PER_DAY
     assert len(panel.clients()) == 1
 
 
@@ -201,8 +201,11 @@ async def test_trial_upgrades_to_paid_same_key(svc: Service, user, panel, clock)
     assert len(panel.clients()) == 1
 
 
-async def test_renewal_extends_from_current_expiry_when_active(svc: Service, user, clock):
+async def test_renewal_extends_from_current_expiry_when_active(svc: Service, user, clock, panel):
     first = await svc.grant_plan(ADMIN, user, "vpn_1m")
+    panel.add_usage(first.email, down=1)
+    await svc.sync_usage()
+    first = await svc.get_key(user)
     clock.advance(days=10)
     second = await svc.grant_plan(ADMIN, user, "vpn_3m")
     assert second.expiry_ms == first.expiry_ms + 90 * MS_PER_DAY
@@ -210,7 +213,9 @@ async def test_renewal_extends_from_current_expiry_when_active(svc: Service, use
 
 
 async def test_renewal_starts_from_now_when_expired(svc: Service, user, clock, panel):
-    await svc.grant_plan(ADMIN, user, "vpn_1m")
+    key = await svc.grant_plan(ADMIN, user, "vpn_1m")
+    panel.add_usage(key.email, down=1)
+    await svc.sync_usage()
     clock.advance(days=45)
     await svc.sync_usage()  # disables the expired client on the panel
     key = await svc.get_key(user)

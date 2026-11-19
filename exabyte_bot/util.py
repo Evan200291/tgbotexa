@@ -36,7 +36,7 @@ def iso(dt: datetime) -> str:
 
 def days_left(expiry_ms: int, now: datetime) -> int:
     """Whole days remaining, rounded up so '3 hours left' shows as 1 day."""
-    remaining = expiry_ms - to_ms(now)
+    remaining = -expiry_ms if expiry_ms < 0 else expiry_ms - to_ms(now)
     if remaining <= 0:
         return 0
     return -(-remaining // MS_PER_DAY)
@@ -89,6 +89,8 @@ TZ_MMT = timezone(MMT, name="MMT")
 
 def fmt_date(ms: int, with_tz: bool = True) -> str:
     """Format millisecond epoch timestamp into Myanmar Time (UTC+6:30)."""
+    if ms < 0:
+        return "ပထမဆုံး ချိတ်ဆက်သုံးစွဲချိန်မှ စတင်မည်"
     base = (from_ms(ms) + MMT).strftime("%Y-%m-%d %H:%M")
     return f"{base} MMT" if with_tz else base
 

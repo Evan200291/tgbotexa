@@ -48,6 +48,7 @@ class MockPanel:
                 "settings": settings},
         }
         self.traffic: dict[str, dict[str, Any]] = {}
+        self.now_ms = None
 
     # ---------- test helpers ----------
     def clients(self, inbound_id: int = 7) -> list[dict[str, Any]]:
@@ -57,8 +58,16 @@ class MockPanel:
         return next((c for c in self.clients(inbound_id) if c["email"] == email), None)
 
     def add_usage(self, email: str, up: int = 0, down: int = 0) -> None:
+        if (up or down) and self.traffic[email]["expiryTime"] < 0 and self.now_ms:
+            self.activate(email, self.now_ms())
         self.traffic[email]["up"] += up
         self.traffic[email]["down"] += down
+
+    def activate(self, email: str, now_ms: int) -> int:
+        deadline = now_ms - self.traffic[email]["expiryTime"]
+        self.traffic[email]["expiryTime"] = deadline
+        self.client(email)["expiryTime"] = deadline
+        return deadline
 
     def expire_sessions(self) -> None:
         self.sessions.clear()

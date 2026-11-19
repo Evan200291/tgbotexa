@@ -832,3 +832,89 @@ p {
   font-size: 0.82rem;
   color: var(--text-muted);
 }
+
+/* Calm, readable customer experience. Shared tokens retain both themes. */
+:root, [data-theme="dark"] {
+  --bg: #10191d;
+  --surface: #19262b;
+  --surface-2: #223238;
+  --text: #f2f7f6;
+  --text-muted: #afbfbd;
+  --border: #33474b;
+  --gold: #70dfbc;
+  --gold-text: #91e8cb;
+  --on-gold: #102a22;
+  --glass-dock: #19262b;
+}
+[data-theme="light"] {
+  --bg: #f4f7f5;
+  --surface: #ffffff;
+  --surface-2: #eaf2ef;
+  --text: #17322b;
+  --text-muted: #506860;
+  --border: #d5e3dd;
+  --gold: #176b53;
+  --gold-text: #176b53;
+  --on-gold: #ffffff;
+  --glass-dock: #ffffff;
+}
+body { background: var(--bg); line-height: 1.85; }
+body::before, body::after, .card::before, .plan-card::before,
+.hero-header::before, .hero-header::after { display: none; }
+.app-shell { max-width: 760px; padding: 18px 18px calc(108px + env(safe-area-inset-bottom)); }
+.hero-header { padding: 8px 0 22px; background: none; border: 0; box-shadow: none; backdrop-filter: none; }
+.brand-logo { width: 44px; height: 44px; filter: none; }
+.brand-title { font-family: inherit; font-size: 1rem; letter-spacing: 0; color: var(--text); text-shadow: none; }
+.brand-tagline { font-size: .72rem; color: var(--text-muted); }
+.welcome-strip { margin: 8px 0 24px; }
+.eyebrow { font-size: .66rem; font-weight: 700; letter-spacing: .15em; color: var(--gold-text); }
+h1 { font-size: clamp(1.25rem, 4vw, 1.8rem); line-height: 1.8; margin: 10px 0 4px; }
+h2, h3 { font-family: inherit; letter-spacing: 0; line-height: 1.9; color: var(--text); }
+.card, .plan-card { padding: 22px; margin-bottom: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: none; backdrop-filter: none; }
+.card:hover, .plan-card:hover { transform: none; box-shadow: none; }
+.trial-card { border-color: var(--gold); background: var(--surface-2); }
+.btn { min-height: 48px; padding: 12px 16px; border-radius: 12px; font-size: .9rem; line-height: 1.8; letter-spacing: 0; box-shadow: none; text-transform: none; white-space: normal; }
+.btn-primary { background: var(--gold); color: var(--on-gold); border: 1px solid var(--gold); }
+.btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.btn:hover { transform: none; filter: brightness(1.05); box-shadow: none; }
+.btn:disabled { cursor: default; opacity: .6; filter: none; }
+.btn-row { gap: 10px; flex-wrap: wrap; }
+.btn-row > .btn { flex: 1 1 150px; }
+.mono-box { background: var(--bg); padding: 14px; border-radius: 12px; line-height: 1.6; overflow-wrap: anywhere; word-break: break-all; font-size: .8rem; }
+.stat-row { gap: 12px; padding: 7px 0; align-items: baseline; }
+.stat-val { text-align: right; overflow-wrap: anywhere; }
+.ring-wrap { gap: 22px; }
+.ring-svg { filter: none; }
+.lotus-divider, .card-ornament { display: none; }
+.bottom-dock { border: 1px solid var(--border); background: var(--glass-dock); box-shadow: none; backdrop-filter: none; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.btn-primary::before, .btn-primary::after { display: none; }
+.dock-tab { min-height: 54px; font-size: .73rem; line-height: 1.8; color: var(--text-muted); }
+.dock-tab.active { color: var(--gold-text); background: var(--surface-2); border-color: transparent; }
+.dock-icon { font-size: 1.1rem; }
+.theme-btn { min-width: 44px; min-height: 44px; background: var(--surface-2); border: 1px solid var(--border); box-shadow: none; }
+.muted { color: var(--text-muted); }
+.small { font-size: .78rem; }
+.setup-steps { list-style: none; counter-reset: step; padding: 0; margin: 20px 0; }
+.setup-steps li { counter-increment: step; position: relative; padding: 0 0 20px 44px; }
+.setup-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 30px; height: 30px; text-align: center; border-radius: 50%; background: var(--surface-2); color: var(--gold-text); font-weight: 700; }
+.setup-steps p { margin: 4px 0 0; color: var(--text-muted); font-size: .9rem; }
+.download-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.download-grid .btn-primary { grid-column: 1 / -1; }
+.screenshot-guide { margin: 18px 0; border: 1px solid var(--border); padding: 14px; border-radius: 12px; }
+.screenshot-guide summary { cursor: pointer; font-weight: 600; }
+.screenshot-guide img { width: 100%; height: auto; border-radius: 8px; margin-top: 14px; }
+.plan-price { color: var(--gold-text); text-shadow: none; }
+.plan-1m, .plan-3m, .plan-6m { background: var(--surface); }
+:focus-visible { outline: 3px solid var(--gold-text); outline-offset: 3px; }
+@media (max-width: 420px) {
+  .app-shell { padding-left: 12px; padding-right: 12px; }
+  .card, .plan-card { padding: 17px; }
+  .brand-tagline { max-width: 215px; }
+  .ring-wrap { flex-direction: column; align-items: stretch; }
+  .ring-center-label { align-self: center; }
+  .ring-meta { width: 100%; }
+  .plan-head { flex-wrap: wrap; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

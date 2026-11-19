@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from html import escape
 from pathlib import Path
 
 from aiogram import Bot, F, Router
@@ -22,7 +23,6 @@ from .messages import (
     format_key_message,
     format_plans_message,
     format_usage_message,
-    guide_detail_kb,
     guide_menu_kb,
     key_kb,
     key_server_switch_kb,
@@ -32,18 +32,17 @@ from .messages import (
     support_kb,
 )
 
-GUIDE_KEYS = {
-    "android": "guide_android",
-    "ios": "guide_ios",
-    "desktop": "guide_desktop",
-}
-GUIDE_INSTALL_KEYS = {
-    "android": "guide_install_android",
-    "ios": "guide_install_ios",
-    "desktop": "guide_install_desktop",
-}
 GUIDE_ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets" / "guides"
-_GUIDE_FILE_ID_CACHE: dict[int, str] = {}
+
+
+async def send_outline_guide(bot: Bot, chat_id: int, settings: Settings) -> None:
+    image = GUIDE_ASSETS_DIR / "outline-quickstart.jpg"
+    if image.is_file():
+        await bot.send_photo(chat_id, FSInputFile(image), caption=t("guide_simple"),
+            parse_mode="HTML", reply_markup=guide_menu_kb(settings))
+    else:
+        await bot.send_message(chat_id, t("guide_simple"), parse_mode="HTML",
+            reply_markup=guide_menu_kb(settings))
 
 
 async def send_key_card(
@@ -79,37 +78,30 @@ def build_user_router() -> Router:
     ) -> None:
         await state.clear()
         uid = msg.from_user.id if msg.from_user else msg.chat.id
-        name = (msg.from_user.first_name if (msg.from_user and msg.from_user.first_name) else "").strip()
-        greeting = f"👋 မင်္ဂလာပါ <b>{name}</b>" if name else "👋 မင်္ဂလာပါ"
-        await bot.send_message(
-            msg.chat.id,
-            greeting,
-            parse_mode="HTML",
-            reply_markup=reply_menu_kb(settings),
-        )
         res = await svc.get_reseller_info(uid)
-        body = t("welcome_body")
+        body = t("welcome_body", store=escape(settings.store_name))
         if res["is_reseller"]:
             body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
         await msg.answer(
-            branded(body), parse_mode="HTML", reply_markup=main_menu_kb(settings)
+            branded(body), parse_mode="HTML", reply_markup=reply_menu_kb(settings)
         )
 
-    @r.message(F.text.in_({"start", "Start", "START", "🏠 ပင်မမီနူး", "ပင်မမီနူး"}))
+    @r.message(F.text.in_({"start", "Start", "START", t("btn_home")}))
     async def msg_home(
         msg: Message, svc: Service, settings: Settings, state: FSMContext
     ) -> None:
         await state.clear()
         uid = msg.from_user.id if msg.from_user else msg.chat.id
         res = await svc.get_reseller_info(uid)
-        body = t("welcome_body")
+        body = t("welcome_body", store=escape(settings.store_name))
         if res["is_reseller"]:
             body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
         await msg.answer(
-            branded(body), parse_mode="HTML", reply_markup=main_menu_kb(settings)
+            branded(body), parse_mode="HTML", reply_markup=reply_menu_kb(settings)
         )
 
-    @r.message(F.text.contains("အခမဲ့ စမ်းသပ်"))
+    @r.message(Command("trial"))
+    @r.message(F.text == t("btn_trial"))
     async def msg_trial(msg: Message, svc: Service, settings: Settings, bot: Bot) -> None:
         uid = msg.from_user.id if msg.from_user else msg.chat.id
         try:
@@ -127,7 +119,7 @@ def build_user_router() -> Router:
         intro = t("trial_ok", gb=P.TRIAL_QUOTA_GB, days=P.TRIAL_DAYS)
         await send_key_card(bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc, settings=settings)
 
-    @r.message(F.text.contains("Plan ဝယ်မည်"))
+    @r.message(F.text == t("btn_buy"))
     async def msg_plans(msg: Message, svc: Service) -> None:
         uid = msg.from_user.id if msg.from_user else msg.chat.id
         res = await svc.get_reseller_info(uid)
@@ -137,7 +129,8 @@ def build_user_router() -> Router:
             reply_markup=plans_kb(is_reseller=res["is_reseller"]),
         )
 
-    @r.message(F.text.contains("ကျွန်ုပ်၏ Key") | F.text.contains("သုံးစွဲမှု"))
+    @r.message(Command("key"))
+    @r.message(F.text == t("btn_my_key"))
     async def msg_my_key(msg: Message, svc: Service, settings: Settings, bot: Bot) -> None:
         uid = msg.from_user.id if msg.from_user else msg.chat.id
         keys = await svc.list_keys(uid)
@@ -149,13 +142,12 @@ def build_user_router() -> Router:
         for kv in keys:
             await send_key_card(bot, msg.chat.id, kv, svc.now(), svc=svc, settings=settings)
 
-    @r.message(F.text.contains("ထည့်သွင်းနည်း"))
-    async def msg_guide(msg: Message) -> None:
-        await msg.answer(
-            branded(t("guide_menu")), parse_mode="HTML", reply_markup=guide_menu_kb()
-        )
+    @r.message(Command("guide"))
+    @r.message(F.text == t("btn_guide"))
+    async def msg_guide(msg: Message, bot: Bot, settings: Settings) -> None:
+        await send_outline_guide(bot, msg.chat.id, settings)
 
-    @r.message(F.text.contains("Support"))
+    @r.message(F.text == t("btn_support"))
     async def msg_support(msg: Message, settings: Settings) -> None:
         await msg.answer(
             branded(t("support_body")), parse_mode="HTML", reply_markup=support_kb(settings)
@@ -182,7 +174,7 @@ def build_user_router() -> Router:
         await cb.answer()
         if cb.message:
             res = await svc.get_reseller_info(cb.from_user.id)
-            body = t("welcome_body")
+            body = t("welcome_body", store=escape(settings.store_name))
             if res["is_reseller"]:
                 body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
             await cb.message.answer(
@@ -329,57 +321,28 @@ def build_user_router() -> Router:
             )
 
     @r.callback_query(F.data == "nav:guide")
-    async def cb_guide_menu(cb: CallbackQuery, bot: Bot) -> None:
-        await cb.answer()
-        chat_id = cb.message.chat.id if cb.message else cb.from_user.id
-        await bot.send_message(
-            chat_id, branded(t("guide_menu")), parse_mode="HTML", reply_markup=guide_menu_kb()
-        )
-
     @r.callback_query(F.data.startswith("guide:"))
-    async def cb_guide_platform(cb: CallbackQuery, bot: Bot, svc: Service) -> None:
+    async def cb_guide_menu(cb: CallbackQuery, bot: Bot, settings: Settings) -> None:
         await cb.answer()
-        platform = (cb.data or "").split(":", 1)[1]
-        str_key = GUIDE_KEYS.get(platform)
-        if not str_key:
-            return
+        await send_outline_guide(bot, cb.message.chat.id if cb.message else cb.from_user.id, settings)
+
+    @r.callback_query(F.data == "download:apk")
+    async def cb_apk(cb: CallbackQuery, bot: Bot) -> None:
+        await cb.answer()
+        from ..downloads import APK_PATH, APK_URL
         chat_id = cb.message.chat.id if cb.message else cb.from_user.id
-        await bot.send_chat_action(chat_id=chat_id, action="upload_photo")
-        install_key = GUIDE_INSTALL_KEYS.get(platform, "guide_install_android")
-        step_captions = [
-            t("guide_step1"),
-            t("guide_step2", install=t(install_key)),
-            t("guide_step3"),
-            t("guide_step4"),
-        ]
-        for idx, caption in enumerate(step_captions, start=1):
-            img_path = GUIDE_ASSETS_DIR / f"step{idx}.jpg"
-            if not img_path.is_file():
-                continue
-            cache_key = (bot.id, idx)
-            setting_key = f"guide_fid_{bot.id}_{idx}"
-            cached_fid = _GUIDE_FILE_ID_CACHE.get(cache_key)
-            if not cached_fid:
-                cached_fid = await svc.db.get_setting(setting_key)
-                if cached_fid:
-                    _GUIDE_FILE_ID_CACHE[cache_key] = cached_fid
+        if APK_PATH.is_file():
+            await bot.send_document(chat_id, FSInputFile(APK_PATH), caption=t("apk_caption"))
+        else:
+            await bot.send_message(chat_id, t("apk_caption") + "\n" + APK_URL)
 
-            photo_ref: str | FSInputFile = cached_fid or FSInputFile(img_path)
-            sent = await bot.send_photo(
-                chat_id=chat_id,
-                photo=photo_ref,
-                caption=branded(caption),
-                parse_mode="HTML",
-            )
-            if sent.photo:
-                new_fid = sent.photo[-1].file_id
-                if _GUIDE_FILE_ID_CACHE.get(cache_key) != new_fid:
-                    _GUIDE_FILE_ID_CACHE[cache_key] = new_fid
-                    await svc.db.set_setting(setting_key, new_fid)
-
-        await bot.send_message(
-            chat_id, branded(t(str_key)), parse_mode="HTML", reply_markup=guide_detail_kb()
-        )
+    @r.callback_query(F.data == "membership:check")
+    async def cb_joined(cb: CallbackQuery, settings: Settings, state: FSMContext) -> None:
+        await state.clear()
+        await cb.answer(t("join_ok"))
+        if cb.message:
+            await cb.message.answer(t("welcome_body", store=escape(settings.store_name)),
+                parse_mode="HTML", reply_markup=reply_menu_kb(settings))
 
     @r.callback_query(F.data == "nav:support")
     async def cb_support(cb: CallbackQuery, settings: Settings, bot: Bot) -> None:

@@ -13,7 +13,7 @@ from exabyte_bot.service import (
     OrderNotFound,
     Service,
 )
-from exabyte_bot.util import MS_PER_DAY, to_ms
+from exabyte_bot.util import MS_PER_DAY
 from tests.conftest import ADMIN
 
 OTHER = 444555666
@@ -38,7 +38,7 @@ async def test_purchase_each_plan(svc: Service, user, panel, clock, plan, amount
     assert res.key.kind == "paid" and res.key.unlimited
     c = panel.client(res.key.email)
     assert c["totalGB"] == 0 and c["limitIp"] == 1
-    assert c["expiryTime"] == to_ms(clock()) + days * MS_PER_DAY
+    assert c["expiryTime"] == -days * MS_PER_DAY
 
 
 async def test_approve_is_idempotent(svc: Service, user, panel):

@@ -5,10 +5,12 @@ Every main message starts with HEADER + DIVIDER. All Burmese text comes from str
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from datetime import datetime
 from html import escape
 
 from aiogram.types import (
+    CopyTextButton,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
@@ -19,13 +21,15 @@ from aiogram.types import (
 from .. import packages as P
 from ..config import Settings
 from ..service import KeyView, Order
-from ..strings import DIVIDER, HEADER, t
+from ..strings import DIVIDER, t
 from ..util import days_left, fmt_bytes, fmt_date, fmt_mmk
+
+STORE_NAME: ContextVar[str] = ContextVar("store_name", default="Exabyte Digital Store")
 
 
 def branded(body: str) -> str:
     """Wrap a message body with the §9.5 branded one-line header and divider."""
-    return f"<b>{HEADER}</b>\n{DIVIDER}\n{body}"
+    return f"<b>✨ {escape(STORE_NAME.get())}</b>\n{DIVIDER}\n{body}"
 
 
 def progress_bar(used: int, quota: int, width: int = 10) -> tuple[str, int]:
@@ -221,7 +225,8 @@ def reply_menu_kb(settings: Settings) -> ReplyKeyboardMarkup:
             KeyboardButton(text=t("btn_support")),
             KeyboardButton(text=t("btn_home")),
         ])
-    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, is_persistent=True)
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, is_persistent=True,
+        one_time_keyboard=False, input_field_placeholder="အောက်ပါ မီနူးမှ ရွေးပါ")
 
 
 def main_menu_kb(settings: Settings) -> InlineKeyboardMarkup:
@@ -258,6 +263,9 @@ def back_home_kb() -> InlineKeyboardMarkup:
 
 def key_kb(kv: KeyView) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+    if len(kv.link) <= 256:
+        rows.append([InlineKeyboardButton(text="📋 Key ကူးယူမည်",
+                                          copy_text=CopyTextButton(text=kv.link))])
     if kv.multi_server and kv.id:
         rows.append([
             InlineKeyboardButton(
@@ -392,25 +400,21 @@ def order_created_kb(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def guide_menu_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text=t("btn_guide_android"), callback_data="guide:android"),
-                InlineKeyboardButton(text=t("btn_guide_ios"), callback_data="guide:ios"),
-            ],
-            [
-                InlineKeyboardButton(text=t("btn_guide_desktop"), callback_data="guide:desktop"),
-                InlineKeyboardButton(text=t("back"), callback_data="nav:home"),
-            ],
-        ]
-    )
+def guide_menu_kb(settings: Settings | None = None) -> InlineKeyboardMarkup:
+    from ..downloads import APP_STORE_URL, MAC_URL, PLAY_STORE_URL, WINDOWS_URL
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬇️ Outline APK ရယူရန်", callback_data="download:apk")],
+        [InlineKeyboardButton(text="Google Play", url=PLAY_STORE_URL),
+         InlineKeyboardButton(text="App Store", url=APP_STORE_URL)],
+        [InlineKeyboardButton(text="Windows ဒေါင်းလုဒ်", url=WINDOWS_URL),
+         InlineKeyboardButton(text="Mac App Store", url=MAC_URL)],
+        [InlineKeyboardButton(text=t("btn_my_key"), callback_data="nav:key"),
+         InlineKeyboardButton(text=t("back"), callback_data="nav:home")],
+    ])
 
 
 def guide_detail_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=t("back"), callback_data="nav:guide")]]
-    )
+    return guide_menu_kb()
 
 
 def support_kb(settings: Settings) -> InlineKeyboardMarkup:

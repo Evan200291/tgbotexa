@@ -121,7 +121,10 @@
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
-      throw new Error(data.detail || "တစ်ခုခု မှားယွင်းသွားပါသည်။");
+      const detail = data.detail;
+      const error = new Error((detail && detail.message) || detail || "တစ်ခုခု မှားယွင်းသွားပါသည်။");
+      error.joinUrl = detail && detail.join_url;
+      throw error;
     }
     return data;
   }
@@ -189,6 +192,8 @@
     });
     document.querySelectorAll(".dock-tab").forEach((btn) => {
       btn.classList.toggle("active", btn.getAttribute("data-tab") === tab);
+      if (btn.getAttribute("data-tab") === tab) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
     });
     if (tab === "admin" && state.boot && state.boot.user && state.boot.user.is_admin) {
       loadAdminOverview();
@@ -212,8 +217,8 @@
       badge.className = "badge badge-none";
       badge.textContent = "Key မရှိသေးပါ";
       arc.style.strokeDashoffset = String(circum);
-      rVal.textContent = "0%";
-      rSub.textContent = "Key မရှိသေးပါ";
+      rVal.textContent = "5 GB";
+      rSub.textContent = "အခမဲ့ စမ်းသုံးပါ";
       kindEl.textContent = "—";
       daysEl.textContent = "0 ရက်";
       expEl.textContent = "—";
@@ -229,7 +234,8 @@
 
       kindEl.textContent = st.kind === "paid" ? "ငွေပေး Plan" : "အခမဲ့ စမ်းသပ်";
       daysEl.textContent = st.days_left + " ရက်";
-      expEl.textContent = fmtDateShort(st.expiry_at);
+      expEl.textContent = st.pending_activation ? "စတင်မသုံးရသေးပါ" : fmtDateShort(st.expiry_at);
+      if (st.pending_activation) badge.textContent = "ချိတ်ဆက်ရန် အသင့်";
       srvCnt.textContent = ((st.servers && st.servers.length) || 1) + " လုံး";
 
       if (st.unlimited) {
@@ -283,7 +289,7 @@
       state.countdownTimer = setInterval(tick, 1000);
     } else {
       trialBtn.disabled = false;
-      trialBtn.textContent = "⏳ အခမဲ့ စမ်းသပ် (5 GB) ရယူမည်";
+      trialBtn.textContent = "အခမဲ့ 5 GB ရယူမည်";
       trialDesc.textContent =
         "မြန်နှုန်းမြင့် Shadowsocks VPN ကို 5 GB (7 ရက်) အခမဲ့ စမ်းသပ်အသုံးပြုနိုင်ပါသည်။";
     }
@@ -333,7 +339,7 @@
         dataDesc +
         " • လက်ကျန် " +
         k.days_left +
-        " ရက်</div>";
+        " ရက်" + (k.pending_activation ? " · ပထမဆုံး သုံးချိန်မှ စတင်မည်" : "") + "</div>";
       kCard.appendChild(hdr);
 
       const servers =
@@ -346,13 +352,22 @@
         const title = document.createElement("div");
         title.style.fontWeight = "600";
         title.style.fontSize = "0.9rem";
-        title.textContent = "🖧 " + srv.name + " (နှိပ်၍ ကူးယူပါ):";
+        title.textContent = srv.name;
         const box = document.createElement("div");
         box.className = "mono-box";
+        box.tabIndex = 0;
+        box.setAttribute("role", "button");
+        box.setAttribute("aria-label", "VPN Key ကူးယူမည်");
+        box.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); copyText(srv.link, srv.name); } });
         box.textContent = srv.link;
         box.addEventListener("click", () => copyText(srv.link, srv.name));
         wrap.appendChild(title);
         wrap.appendChild(box);
+        const copy = document.createElement("button");
+        copy.type = "button"; copy.className = "btn btn-secondary btn-sm";
+        copy.textContent = "Key ကူးယူမည်";
+        copy.onclick = () => copyText(srv.link, srv.name);
+        wrap.appendChild(copy);
         kCard.appendChild(wrap);
       });
 
@@ -451,7 +466,7 @@
     const existingKeys = st.keys || [];
     const availServers = boot.available_servers || [];
 
-    if (existingKeys.length > 0) {
+    if (existingKeys.length > 0 || availServers.length > 1) {
       const modeCard = document.createElement("div");
       modeCard.className = "card";
       modeCard.innerHTML =
@@ -557,6 +572,12 @@
     try {
       const boot = await api("/api/bootstrap");
       state.boot = boot;
+      document.querySelectorAll(".brand-title").forEach(el => { el.textContent = boot.store.name; });
+      document.title = boot.store.name;
+      document.querySelectorAll(".brand-logo").forEach(el => {
+        el.alt = boot.store.name;
+        el.src = boot.store.name === "Outline Plus MM" ? "/static/brand/outlineplus.svg" : "/static/brand/logo.svg";
+      });
       document.getElementById("loading-view").classList.add("hidden");
       document.getElementById("hdr-tagline").textContent =
         (boot.store && boot.store.tagline) || "လုံခြုံ မြန်ဆန် စိတ်ချရသော ဒစ်ဂျစ်တယ်ဆိုင်";
@@ -582,8 +603,19 @@
       renderPlans(boot);
       switchTab(state.devAdmin && boot.user && boot.user.is_admin ? "admin" : state.activeTab);
     } catch (e) {
-      document.getElementById("loading-view").innerHTML =
-        '<div class="card"><h3>⚠️ ' + e.message + "</h3></div>";
+      const view = document.getElementById("loading-view");
+      view.classList.remove("hidden");
+      document.querySelectorAll(".tab-view").forEach(el => el.classList.add("hidden"));
+      const card = document.createElement("div"); card.className = "card";
+      const text = document.createElement("p"); text.textContent = e.message; card.appendChild(text);
+      if (e.joinUrl) {
+        const join = document.createElement("a"); join.className = "btn btn-primary";
+        join.textContent = "ချန်နယ်သို့ ဝင်မည်"; join.href = e.joinUrl;
+        join.target = "_blank"; join.rel = "noopener"; card.appendChild(join);
+      }
+      const retry = document.createElement("button"); retry.className = "btn btn-secondary";
+      retry.textContent = e.joinUrl ? "ဝင်ပြီးပါပြီ · ပြန်စစ်မည်" : "ပြန်ကြိုးစားမည်";
+      retry.onclick = refreshBootstrap; card.appendChild(retry); view.replaceChildren(card);
     } finally {
       setTimeout(() => {
         const sp = document.getElementById("splash");

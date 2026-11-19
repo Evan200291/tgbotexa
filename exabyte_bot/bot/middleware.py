@@ -20,9 +20,10 @@ from aiogram.types import (
 )
 
 from ..config import Settings
+from ..membership import is_channel_member
 from ..service import Service
 from ..strings import t
-from .messages import branded
+from .messages import STORE_NAME, branded
 
 log = logging.getLogger(__name__)
 
@@ -127,10 +128,28 @@ class GuardMiddleware(BaseMiddleware):
             if await self.svc.is_maintenance():
                 await _reply(event, branded(t("maintenance")))
                 return None
+        bot = data.get("bot") or getattr(event, "bot", None)
+        if not await is_channel_member(bot, self.settings, uid):
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=t("btn_join"),
+                    url=self.settings.required_channel_url or
+                    f"https://t.me/{self.settings.required_channel.lstrip('@')}")],
+                [InlineKeyboardButton(text=t("btn_check_join"), callback_data="membership:check")],
+            ])
+            message = event.message if isinstance(event, CallbackQuery) else event
+            if isinstance(event, CallbackQuery):
+                await event.answer(t("join_required"), show_alert=True)
+            if isinstance(message, Message):
+                await message.answer(t("join_required"), reply_markup=keyboard)
+            return None
 
         data["svc"] = self.svc
         data["settings"] = self.settings
-        return await handler(event, data)
+        brand_token = STORE_NAME.set(self.settings.store_name)
+        try:
+            return await handler(event, data)
+        finally:
+            STORE_NAME.reset(brand_token)
 
 
 async def _reply(event: TelegramObject, text: str) -> None:

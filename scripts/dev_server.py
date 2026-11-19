@@ -38,7 +38,7 @@ async def main() -> None:
     db = Database(":memory:")
     await db.connect()
     svc = Service(
-        db, xui, inbound_remark="exabytetgbot", server_host="tpone.lhpvpn.online"
+        db, xui, inbound_remark="exabytetgbot", server_host="vpn.example.test"
     )
     await svc.startup()
 

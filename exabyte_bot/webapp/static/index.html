@@ -22,11 +22,6 @@
   <main class="app-shell">
     <!-- Hero Header with Exabyte Logo & Decorative Pagoda Skyline -->
     <header class="hero-header">
-      <svg class="hero-pagoda-bg" viewBox="0 0 200 100" aria-hidden="true">
-        <path fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" d="M0 60 H200 M0 75 H200 M0 90 H200"/>
-        <path fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" d="M100 40 L30 100 M100 40 L70 100 M100 40 L100 100 M100 40 L130 100 M100 40 L170 100"/>
-        <circle cx="100" cy="38" r="3" fill="currentColor"/>
-      </svg>
       <div class="hero-top">
         <div class="brand-lockup">
           <img src="/static/brand/logo.svg" alt="Exabyte Logo" class="brand-logo">
@@ -37,7 +32,7 @@
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
           <button id="dev-role-btn" class="theme-btn hidden" type="button" title="Switch Customer/Admin Preview">👑</button>
-          <button id="theme-toggle" class="theme-btn" type="button" aria-label="Theme ပြောင်းရန်">🌙</button>
+          <button id="theme-toggle" class="theme-btn" type="button" aria-label="အလင်း / အမှောင် ပြောင်းမည်">🌙</button>
         </div>
       </div>
     </header>
@@ -51,10 +46,10 @@
 
     <!-- TAB 1: HOME DASHBOARD -->
     <section id="view-home" class="tab-view hidden">
-      <div class="card">
-        <svg class="card-ornament" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="none" stroke="currentColor" stroke-width="1.6" d="M3 3h18v18M9 3l12 12M15 3l6 6"/>
-        </svg>
+      <div class="welcome-strip"><div class="eyebrow">YOUR CONNECTION, SIMPLIFIED</div>
+      <h1>အင်တာနက်ကို လွတ်လပ်စွာ သုံးပါ။</h1>
+      <p class="muted">Outline VPN · ပထမဆုံး သုံးချိန်မှ သက်တမ်းစတင်မည်</p></div>
+      <div class="card account-card">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
           <h2 style="margin:0;font-size:1.1rem;">သင့် VPN အခြေအနေ</h2>
           <span id="home-status-badge" class="badge badge-none">Key မရှိသေးပါ</span>
@@ -97,42 +92,36 @@
         <div class="lotus-divider" aria-hidden="true">◈</div>
 
         <div class="btn-row">
-          <button class="btn btn-primary" type="button" data-go-tab="key">🔑 ကျွန်ုပ်၏ Key ကြည့်မည်</button>
-          <button class="btn btn-secondary" type="button" data-go-tab="plans">💳 Plan ဝယ်မည်</button>
+          <button class="btn btn-primary" type="button" data-go-tab="key"> ကျွန်ုပ်၏ Key ကြည့်မည်</button>
+          <button class="btn btn-secondary" type="button" data-go-tab="plans"> Plan ဝယ်မည်</button>
         </div>
       </div>
 
       <!-- Free Trial Card -->
-      <div class="card">
-        <svg class="card-ornament" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="none" stroke="currentColor" stroke-width="1.6" d="M3 3h18v18M9 3l12 12"/>
-        </svg>
-        <h3 style="font-size:1.05rem;">⏳ အခမဲ့ စမ်းသပ် Key (5 GB / 7 ရက်)</h3>
+      <div class="card trial-card">
+        <h3 style="font-size:1.05rem;"> အခမဲ့ စမ်းသပ် Key (5 GB / 7 ရက်)</h3>
         <p id="trial-desc" style="color:var(--text-muted);font-size:0.94rem;">
           မြန်နှုန်းမြင့် Shadowsocks VPN ကို 5 GB (7 ရက်) အခမဲ့ စမ်းသပ်အသုံးပြုနိုင်ပါသည်။
         </p>
-        <button id="btn-claim-trial" class="btn btn-primary" type="button">⏳ အခမဲ့ စမ်းသပ် ရယူမည်</button>
+        <button id="btn-claim-trial" class="btn btn-primary" type="button"> အခမဲ့ စမ်းသပ် ရယူမည်</button>
       </div>
     </section>
 
     <!-- TAB 2: MY KEY -->
     <section id="view-key" class="tab-view hidden">
       <div id="key-empty-card" class="card hidden">
-        <h3>🔑 သင့်တွင် Key မရှိသေးပါ</h3>
+        <h3> သင့်တွင် Key မရှိသေးပါ</h3>
         <p style="color:var(--text-muted);">အခမဲ့ စမ်းသပ် Key ရယူပါ သို့မဟုတ် ငွေပေး Plan ဝယ်ယူပါ။</p>
         <div class="btn-row">
-          <button class="btn btn-primary" type="button" data-go-tab="home">⏳ အခမဲ့ စမ်းသပ်</button>
-          <button class="btn btn-secondary" type="button" data-go-tab="plans">💳 Plan ဝယ်မည်</button>
+          <button class="btn btn-primary" type="button" data-go-tab="home"> အခမဲ့ စမ်းသပ်</button>
+          <button class="btn btn-secondary" type="button" data-go-tab="plans"> Plan ဝယ်မည်</button>
         </div>
       </div>
 
       <div id="key-content-card" class="card hidden">
-        <svg class="card-ornament" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="none" stroke="currentColor" stroke-width="1.6" d="M3 3h18v18M9 3l12 12"/>
-        </svg>
-        <h2 style="font-size:1.1rem;">🔑 သင့် VPN Key နှင့် QR</h2>
+        <h2 style="font-size:1.1rem;"> သင့် VPN Key</h2>
         <p style="color:var(--text-muted);font-size:0.9rem;">
-          Key ကို တစ်ချက်နှိပ်၍ ကူးယူပြီး Outline, Hiddify, v2rayNG, Streisand ထဲသို့ ထည့်သွင်းပါ။
+          Key ကို ကူးယူပြီး Outline ထဲသို့ ထည့်ပါ။
         </p>
 
         <div id="key-servers-list"></div>
@@ -153,7 +142,7 @@
 
         <div class="btn-row">
           <button id="btn-regen-key" class="btn btn-secondary hidden" type="button">🔄 Key အသစ်လဲမည် (24h တစ်ကြိမ်)</button>
-          <button class="btn btn-secondary" type="button" data-go-tab="guide">🛡️ ထည့်သွင်းနည်း လမ်းညွှန်</button>
+          <button class="btn btn-secondary" type="button" data-go-tab="guide"> ထည့်သွင်းနည်း လမ်းညွှန်</button>
         </div>
       </div>
     </section>
@@ -162,7 +151,7 @@
     <section id="view-plans" class="tab-view hidden">
       <!-- Active Order Checkout Sheet -->
       <div id="checkout-card" class="card hidden">
-        <h2 style="font-size:1.1rem;">💳 ငွေလွှဲရန် နှင့် Screenshot ပို့ရန်</h2>
+        <h2 style="font-size:1.1rem;"> ငွေလွှဲရန် နှင့် Screenshot ပို့ရန်</h2>
         <p style="color:var(--text-muted);font-size:0.92rem;">
           Screenshot တင်ပြီးသည်နှင့် <b>သင့် VPN Key ကို ချက်ချင်း ထုတ်ပေးပါမည်!</b>
         </p>
@@ -192,14 +181,14 @@
           <label for="shot-input">📸 ငွေလွှဲပြေစာ Screenshot ရွေးပါ (Key ချက်ချင်း ရပါမည်):</label>
           <input id="shot-input" class="input" type="file" accept="image/*">
         </div>
-        <button id="btn-submit-shot" class="btn btn-primary" type="button">✨ Screenshot ပို့ပြီး Key ချက်ချင်း ယူမည်</button>
+        <button id="btn-submit-shot" class="btn btn-primary" type="button"> Screenshot ပို့ပြီး Key ချက်ချင်း ယူမည်</button>
         <div class="btn-row">
           <button id="btn-cancel-order" class="btn btn-danger btn-sm" type="button">✖️ အော်ဒါ ပယ်ဖျက်မည်</button>
         </div>
       </div>
 
       <div class="card">
-        <h2 style="font-size:1.1rem;">💳 VPN Plan များ ရွေးချယ်ပါ</h2>
+        <h2 style="font-size:1.1rem;"> VPN Plan များ ရွေးချယ်ပါ</h2>
         <p style="color:var(--text-muted);font-size:0.92rem;margin:0;">
           Data အကန့်အသတ်မရှိ (Unlimited) • စက် 1 လုံး • မြန်နှုန်းမြင့် ဆာဗာများ
         </p>
@@ -208,64 +197,34 @@
       <div id="plans-container"></div>
     </section>
 
-    <!-- TAB 4: GUIDES & SUPPORT -->
+    <!-- One shared Outline guide for all devices -->
     <section id="view-guide" class="tab-view hidden">
       <div class="card">
-        <h2 style="font-size:1.1rem;">🛡️ VPN ထည့်သွင်းနည်း လမ်းညွှန်</h2>
-        <p style="color:var(--text-muted);font-size:0.92rem;">
-          သင်အသုံးပြုသော ဖုန်း သို့မဟုတ် ကွန်ပျူတာကို နှိပ်၍ အဆင့်ဆင့် ကြည့်ရှုပါ။
-        </p>
-
-        <div class="guide-item">
-          <button class="guide-summary" type="button" data-acc="g-android">
-            <span>📱 Android (Outline / Hiddify / v2rayNG)</span><span>▾</span>
-          </button>
-          <div id="g-android" class="guide-body">
-            1. Play Store မှ <b>Outline</b>၊ <b>Hiddify</b> သို့မဟုတ် <b>v2rayNG</b> ကို ဒေါင်းလုဒ်ဆွဲပါ။<br>
-            2. Key စာမျက်နှာမှ <code>ss://...</code> Key Link (သို့) Subscription Link ကို တစ်ချက်နှိပ်၍ Copy ကူးပါ။<br>
-            3. App ကိုဖွင့်ပြီး <b>'+' (Add Server)</b> ကိုနှိပ်ပါ — Clipboard သို့မဟုတ် QR Code မှ ထည့်သွင်းပါ။<br>
-            4. <b>Connect</b> ကိုနှိပ်၍ အသုံးပြုနိုင်ပါပြီ။
-          </div>
+        <div class="eyebrow">GET CONNECTED</div>
+        <h2>Outline ချိတ်ဆက်နည်း</h2>
+        <p class="muted">အဆင့် ၃ ဆင့်ဖြင့် စတင်သုံးပါ။</p>
+        <ol class="setup-steps">
+          <li><b>Outline ထည့်သွင်းပါ</b><p>မိမိစက်အတွက် အောက်ပါ Download ခလုတ်ကို နှိပ်ပါ။</p></li>
+          <li><b>Key ထည့်ပါ</b><p>မိမိ Key ကို Copy လုပ်ပါ။ Outline ဖွင့်ပြီး <b>＋</b> နှိပ်ပါ။ Key ကို Paste လုပ်ပြီး <b>Confirm / Add server</b> နှိပ်ပါ။</p></li>
+          <li><b>Connect နှိပ်ပါ</b><p>VPN ခွင့်ပြုချက်တောင်းလျှင် <b>Allow / OK</b> နှိပ်ပါ။ Connected ဖြစ်လျှင် အသုံးပြုနိုင်ပါပြီ။</p></li>
+        </ol>
+        <div class="download-grid">
+          <a class="btn btn-primary" href="/downloads/outline.apk" download>Android APK ဒေါင်းလုဒ်</a>
+          <a class="btn btn-secondary" href="https://play.google.com/store/apps/details?id=org.outline.android.client" target="_blank" rel="noopener">Google Play</a>
+          <a class="btn btn-secondary" href="https://apps.apple.com/app/outline-app/id1356177741" target="_blank" rel="noopener">iPhone / iPad</a>
+          <a class="btn btn-secondary" href="https://s3.amazonaws.com/outline-releases/client/windows/stable/Outline-Client.exe" target="_blank" rel="noopener">Windows ဒေါင်းလုဒ်</a>
+          <a class="btn btn-secondary" href="https://apps.apple.com/app/outline-app/id1356178125" target="_blank" rel="noopener">Mac App Store</a>
         </div>
-
-        <div class="guide-item">
-          <button class="guide-summary" type="button" data-acc="g-ios">
-            <span>🍎 iPhone / iPad (Outline / Streisand / Hiddify)</span><span>▾</span>
-          </button>
-          <div id="g-ios" class="guide-body hidden">
-            1. App Store မှ <b>Outline</b> သို့မဟုတ် <b>Streisand</b> ကို ထည့်သွင်းပါ။<br>
-            2. <code>ss://...</code> Key Link ကို Copy ကူးပါ။<br>
-            3. App ထဲတွင် <b>'+' → Import from Clipboard</b> (သို့) <b>Scan QR</b> ကို ရွေးပါ။<br>
-            4. VPN Permission ကို <b>Allow</b> ပေးပြီး Connect လုပ်ပါ။
-          </div>
-        </div>
-
-        <div class="guide-item">
-          <button class="guide-summary" type="button" data-acc="g-pc">
-            <span>💻 Windows / macOS (Outline / Hiddify)</span><span>▾</span>
-          </button>
-          <div id="g-pc" class="guide-body hidden">
-            1. <b>Outline Client</b> သို့မဟုတ် <b>Hiddify</b> ကို ကွန်ပျူတာတွင် ထည့်သွင်းပါ။<br>
-            2. <code>ss://...</code> Key Link ကို Copy ကူးပါ။<br>
-            3. App ထဲတွင် <b>Add Server / '+'</b> ကိုနှိပ်ပြီး Key ကို Paste ထည့်၍ Connect နှိပ်ပါ။
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
-          <img src="/static/guides/step1.jpg" alt="Step 1 Copy Key" style="width:100%;border-radius:10px;border:1px solid var(--border);" loading="lazy">
-          <img src="/static/guides/step2.jpg" alt="Step 2 Tap Plus" style="width:100%;border-radius:10px;border:1px solid var(--border);" loading="lazy">
-          <img src="/static/guides/step3.jpg" alt="Step 3 Add Server" style="width:100%;border-radius:10px;border:1px solid var(--border);" loading="lazy">
-          <img src="/static/guides/step4.jpg" alt="Step 4 Connect" style="width:100%;border-radius:10px;border:1px solid var(--border);" loading="lazy">
-        </div>
+        <p class="muted small">APK သည် တရားဝင် Outline download မှ ရယူထားသော မိတ္တူဖြစ်ပါသည်။ အပ်ဒိတ်များကို မိမိဘာသာ ထည့်သွင်းရန် လိုအပ်ပါသည်။</p>
+        <details class="screenshot-guide"><summary>ပုံဖြင့် ကြည့်မည်</summary>
+          <img src="/static/guides/outline-quickstart.jpg" alt="Outline: Plus, Add server, and Connect buttons highlighted" loading="lazy">
+        </details>
+        <button class="btn btn-secondary" type="button" data-go-tab="key">မိမိ Key ကို ကူးယူမည်</button>
       </div>
-
-      <div class="card">
-        <h3 style="font-size:1.05rem;">💬 အကူအညီ လိုအပ်ပါသလား?</h3>
-        <p style="color:var(--text-muted);font-size:0.94rem;">
-          ငွေပေးချေမှု သို့မဟုတ် Key အသုံးပြုရာတွင် အခက်အခဲရှိပါက Admin ထံ တိုက်ရိုက် ဆက်သွယ်နိုင်ပါသည်။
-        </p>
-        <a id="btn-support-link" class="btn btn-primary" href="https://t.me/Exabytedigitals" target="_blank" rel="noopener">
-          💬 Support (@Exabytedigitals) သို့ စာပို့ရန်
-        </a>
+      <div class="card support-card">
+        <h3>အကူအညီ လိုပါသလား?</h3>
+        <p class="muted">ချိတ်ဆက်မရပါက Support ကို ဆက်သွယ်ပါ။</p>
+        <a id="btn-support-link" class="btn btn-secondary" href="#" target="_blank" rel="noopener">Support ဆက်သွယ်မည်</a>
       </div>
     </section>
 
@@ -273,7 +232,7 @@
     <section id="view-admin" class="tab-view hidden">
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-          <h2 style="margin:0;font-size:1.1rem;">🛡️ Exabyte Web Admin Panel</h2>
+          <h2 style="margin:0;font-size:1.1rem;"> Exabyte Web Admin Panel</h2>
           <button id="btn-adm-refresh" class="btn btn-secondary btn-sm" style="width:auto;" type="button">🔄 Refresh</button>
         </div>
         <div id="adm-stats-grid" class="stats-grid"></div>
@@ -281,7 +240,7 @@
 
       <!-- Admin Orders & Screenshots (Paid / Unpaid / Suspend / Edit) -->
       <div class="card">
-        <h3 style="font-size:1.05rem;">💳 အော်ဒါများ နှင့် Screenshot စစ်ဆေးရန်</h3>
+        <h3 style="font-size:1.05rem;"> အော်ဒါများ နှင့် Screenshot စစ်ဆေးရန်</h3>
         <p style="color:var(--text-muted);font-size:0.88rem;">
           Paid နှိပ်လျှင် အတည်ပြုပြီး၊ Unpaid နှိပ်လျှင် ကြိုတင်ထုတ်ပေးထားသော Key ကို အလိုအလျောက် ပြန်ပိတ်ပါမည်။
         </p>
@@ -290,7 +249,7 @@
 
       <!-- Admin Users & Key Editor -->
       <div class="card">
-        <h3 style="font-size:1.05rem;">🔑 သုံးစွဲသူများ နှင့် Key ပြင်ဆင်ရန်</h3>
+        <h3 style="font-size:1.05rem;"> သုံးစွဲသူများ နှင့် Key ပြင်ဆင်ရန်</h3>
         <div id="adm-users-list"></div>
       </div>
 
@@ -321,7 +280,7 @@
 
       <!-- Multi-Panel 3X-UI Server Combinations -->
       <div class="card">
-        <h3 style="font-size:1.05rem;">🖧 3X-UI ဆာဗာများ (Multi-Panel Key Combinations)</h3>
+        <h3 style="font-size:1.05rem;"> 3X-UI ဆာဗာများ (Multi-Panel Key Combinations)</h3>
         <p style="color:var(--text-muted);font-size:0.88rem;">
           ဗားရှင်းတူ 3X-UI ဆာဗာအသစ်များ ထပ်ပေါင်းထည့်နိုင်ပြီး သုံးစွဲသူတိုင်း၏ Key တွင် အလိုအလျောက် ပေါင်းစပ်ပေးပါမည်။
         </p>
@@ -384,7 +343,7 @@
 
         <div class="lotus-divider" aria-hidden="true">◈</div>
 
-        <h4 style="margin:6px 0;">✨ သုံးစွဲသူ အားလုံးထံ စာပို့ရန် (Broadcast)</h4>
+        <h4 style="margin:6px 0;"> သုံးစွဲသူ အားလုံးထံ စာပို့ရန် (Broadcast)</h4>
         <div class="field">
           <textarea id="bcast-input" class="textarea" placeholder="ပို့လိုသော အကြောင်းကြားစာ ရိုက်ထည့်ပါ..."></textarea>
         </div>
@@ -395,17 +354,17 @@
 
   <!-- Floating Liquid Glass Bottom Navigation Dock -->
   <nav class="bottom-dock" aria-label="ပင်မ မီနူး">
-    <button class="dock-tab active" type="button" data-tab="home">
-      <span class="dock-icon">✨</span><span>ပင်မ</span>
+    <button class="dock-tab active" aria-current="page" type="button" data-tab="home">
+      <span class="dock-icon"></span><span>ပင်မ</span>
     </button>
     <button class="dock-tab" type="button" data-tab="key">
-      <span class="dock-icon">🔑</span><span>Key</span>
+      <span class="dock-icon"></span><span>Key</span>
     </button>
     <button class="dock-tab" type="button" data-tab="plans">
-      <span class="dock-icon">💳</span><span>Plan ဝယ်ရန်</span>
+      <span class="dock-icon"></span><span>Plan ဝယ်ရန်</span>
     </button>
     <button class="dock-tab" type="button" data-tab="guide">
-      <span class="dock-icon">🛡️</span><span>လမ်းညွှန်</span>
+      <span class="dock-icon"></span><span>လမ်းညွှန်</span>
     </button>
     <button id="dock-admin-tab" class="dock-tab hidden" type="button" data-tab="admin">
       <span class="dock-icon">⚙️</span><span>Admin</span>
