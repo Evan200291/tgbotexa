@@ -16,7 +16,7 @@ from exabyte_bot.strings import S
 from exabyte_bot.util import MS_PER_DAY, to_ms
 from exabyte_bot.webapp.api import create_webapp
 from exabyte_bot.webapp.auth import build_init_data
-from exabyte_bot.xui import XUIClient
+from exabyte_bot.xui import PanelUnavailable, XUIClient
 from tests.conftest import ADMIN, USER
 from tests.mock_xui import MockPanel
 from tests.test_bot_flows import _make_harness
@@ -177,5 +177,41 @@ async def test_primary_key_edit_works_with_unreachable_extra_panel(svc, user, pa
         updated = await svc.admin_adjust_key(ADMIN, user, add_days=7)
         assert updated.expiry_ms == -37 * MS_PER_DAY
         assert panel.client(key.email)["expiryTime"] == -37 * MS_PER_DAY
+    finally:
+        await client.aclose()
+
+
+async def test_sg_key_is_not_issued_when_required_panel_is_down(svc, user, panel):
+    other = MockPanel()
+    client = XUIClient(f"http://mock/{other.base_path}", other.username, other.password,
+                      transport=httpx.ASGITransport(app=other.app), retries=1)
+    try:
+        info = await svc.add_panel(ADMIN, name="Singapore (SG)", base_url="http://mock",
+                                   username="test", password="test", server_host="sg.example.test",
+                                   client_override=client)
+        other.down = True
+        with pytest.raises(PanelUnavailable):
+            await svc.grant_plan(ADMIN, user, "vpn_1m", target_sub_id=0,
+                                 panel_id=int(info["id"]))
+        assert await svc.get_key(user) is None
+        assert panel.clients() == []
+    finally:
+        await client.aclose()
+
+
+async def test_missing_sg_client_is_restored_on_key_edit(svc, user):
+    other = MockPanel()
+    client = XUIClient(f"http://mock/{other.base_path}", other.username, other.password,
+                      transport=httpx.ASGITransport(app=other.app), retries=1)
+    try:
+        info = await svc.add_panel(ADMIN, name="Singapore (SG)", base_url="http://mock",
+                                   username="test", password="test", server_host="sg.example.test",
+                                   client_override=client)
+        key = await svc.grant_plan(ADMIN, user, "vpn_1m", target_sub_id=0,
+                                   panel_id=int(info["id"]))
+        other.inbounds[7]["settings"]["clients"].clear()
+        other.traffic.pop(key.email)
+        await svc.admin_adjust_key(ADMIN, user, add_days=7)
+        assert other.client(key.email) is not None
     finally:
         await client.aclose()

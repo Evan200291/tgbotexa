@@ -289,6 +289,7 @@ class Service:
         self,
         op: str,
         *,
+        required_panel_ids: set[int] | None = None,
         tg_id: int = 0,
         email: str = "",
         password: str = "",
@@ -300,6 +301,9 @@ class Service:
         comment: str = "",
     ) -> None:
         rows = await self.db.fetchall("SELECT * FROM panels WHERE enabled=1 ORDER BY id")
+        required = required_panel_ids or set()
+        if required - {int(r["id"]) for r in rows}:
+            raise PanelUnavailable("Required 3X-UI panel is not enabled")
         for r in rows:
             try:
                 client, ib = await self._get_extra_client(r)
@@ -317,14 +321,27 @@ class Service:
                 )
                 if op == "add":
                     await client.add_client(ib.id, spec)
+                    if int(r["id"]) in required:
+                        saved = await client.get_inbound(ib.id)
+                        if not any(existing.get("email") == email for existing in saved.clients):
+                            raise PanelUnavailable("Required 3X-UI panel did not retain the key")
                 elif op == "update":
-                    await client.update_client(ib.id, spec)
+                    # An earlier best-effort replication may have left this
+                    # panel without the key. Recreate it during the next edit.
+                    inbound = await client.get_inbound(ib.id)
+                    if not any(existing.get("email") == email for existing in inbound.clients):
+                        await client.add_client(ib.id, spec)
+                    else:
+                        await client.update_client(ib.id, spec)
                 elif op == "delete":
                     await client.delete_client(ib.id, email)
                 elif op == "reset":
                     await client.reset_traffic(ib.id, email)
-            except Exception:
-                log.warning("extra panel id=%s failed op=%s", r["id"], op)
+            except Exception as exc:
+                log.warning("extra panel id=%s failed op=%s (%s)",
+                            r["id"], op, type(exc).__name__)
+                if int(r["id"]) in required:
+                    raise PanelUnavailable("Required 3X-UI panel could not save the key") from None
 
     @property
     def inbound(self) -> Inbound:
@@ -731,13 +748,20 @@ class Service:
                 self.inbound.method), new_sub_id()
             quota = P.TRIAL_QUOTA_GB * GB
             expiry = -P.TRIAL_DAYS * MS_PER_DAY
-            sg_pid = min(self._panels_cache.keys()) if self._panels_cache else 0
+            enabled_panels = [pid for pid, panel in self._panels_cache.items() if panel["enabled"]]
+            sg_pid = min(enabled_panels) if enabled_panels else 0
             await self.xui.add_client(self.inbound.id, self._spec(
                 tg_id, email, password, sub_id, quota, expiry, limit_ip=1, comment="trial"))
-            await self._replicate_extra_panels(
-                "add", tg_id=tg_id, email=email, password=password, sub_id=sub_id,
-                quota=quota, expiry_ms=expiry, limit_ip=1, comment="trial",
-            )
+            try:
+                await self._replicate_extra_panels(
+                    "add", tg_id=tg_id, email=email, password=password, sub_id=sub_id,
+                    quota=quota, expiry_ms=expiry, limit_ip=1, comment="trial",
+                    required_panel_ids={sg_pid} if sg_pid else set(),
+                )
+            except PanelUnavailable:
+                with contextlib.suppress(XUIError):
+                    await self.xui.delete_client(self.inbound.id, email)
+                raise
             async with self.db.transaction() as tx:
                 cur = await tx.execute(
                     "INSERT INTO subscriptions(user_id, kind, xui_email, password, sub_id, plan_id,"
@@ -789,10 +813,19 @@ class Service:
             await self.xui.add_client(ib.id, self._spec(
                 tg_id, email, password, sub_id, plan.quota_bytes, expiry, plan.devices,
                 comment=plan.id))
-            await self._replicate_extra_panels(
-                "add", tg_id=tg_id, email=email, password=password, sub_id=sub_id,
-                quota=plan.quota_bytes, expiry_ms=expiry, limit_ip=plan.devices, comment=plan.id,
-            )
+            try:
+                await self._replicate_extra_panels(
+                    "add", tg_id=tg_id, email=email, password=password, sub_id=sub_id,
+                    quota=plan.quota_bytes, expiry_ms=expiry, limit_ip=plan.devices, comment=plan.id,
+                    required_panel_ids=(
+                        {int(pid) for pid, panel in self._panels_cache.items() if panel["enabled"]}
+                        if is_multi else ({panel_id} if panel_id > 0 else set())
+                    ),
+                )
+            except PanelUnavailable:
+                with contextlib.suppress(XUIError):
+                    await self.xui.delete_client(ib.id, email)
+                raise
             async with self.db.transaction() as tx:
                 cur = await tx.execute(
                     "INSERT INTO subscriptions(user_id, kind, xui_email, password, sub_id, plan_id,"
@@ -831,6 +864,10 @@ class Service:
                 "update", tg_id=tg_id, email=sub["xui_email"], password=sub["password"],
                 sub_id=sub["sub_id"], quota=new_quota, expiry_ms=expiry,
                 limit_ip=plan.devices, comment=plan.id,
+                required_panel_ids=(
+                    {int(pid) for pid, panel in self._panels_cache.items() if panel["enabled"]}
+                    if is_multi else ({eff_pid} if eff_pid > 0 else set())
+                ),
             )
             if was_trial:
                 # Trial usage must not count against the paid plan.
