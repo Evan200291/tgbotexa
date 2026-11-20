@@ -235,6 +235,13 @@ class Service:
         return self._inbound
 
     async def startup(self) -> Inbound | None:
+        # SG's panel on port 8080 serves HTTP. Repair rows created by older
+        # releases, which registered this specific endpoint as HTTPS.
+        await self.db.execute(
+            "UPDATE panels SET base_url='http' || substr(base_url, 6), verify_tls=0 "
+            "WHERE server_host=? AND base_url LIKE ?",
+            ("sgsep.lhpvpn.online", "https://sgsep.lhpvpn.online:8080/%"),
+        )
         await self._refresh_panels_cache()
         if self.server_host == "tpone.lhpvpn.online" and not any(
             p.get("server_host") == "sgsep.lhpvpn.online" for p in self._panels_cache.values()
@@ -245,7 +252,7 @@ class Service:
                 await self.add_panel(
                     0,
                     name="Singapore (SG)",
-                    base_url=f"https://{sg_host}:8080/{sg_path}",
+                    base_url=f"http://{sg_host}:8080/{sg_path}",
                     username=self.xui.username,
                     password=self.xui.password,
                     server_host=sg_host,

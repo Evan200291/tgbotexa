@@ -11,6 +11,7 @@ from pydantic import SecretStr
 
 from exabyte_bot.config import Settings
 from exabyte_bot.membership import is_channel_member
+from exabyte_bot.service import Service
 from exabyte_bot.strings import S
 from exabyte_bot.util import MS_PER_DAY, to_ms
 from exabyte_bot.webapp.api import create_webapp
@@ -20,6 +21,23 @@ from tests.conftest import ADMIN, USER
 from tests.mock_xui import MockPanel
 from tests.test_bot_flows import _make_harness
 from tests.test_webapp_auth import FAKE_TOKEN
+
+
+async def test_startup_repairs_existing_sg_panel_http_url(db, xui, clock):
+    await db.execute(
+        "INSERT INTO panels(name, base_url, username, password, server_host, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("Singapore (SG)", "https://sgsep.lhpvpn.online:8080/secret-path", "user", "pass",
+         "sgsep.lhpvpn.online", 0),
+    )
+    svc = Service(db, xui, inbound_remark="exabytetgbot", server_host="vpn.example.test",
+                  clock=clock)
+    await svc.startup()
+    row = await db.fetchone("SELECT base_url, verify_tls FROM panels WHERE id=1")
+    assert row["base_url"] == "http://sgsep.lhpvpn.online:8080/secret-path"
+    assert row["verify_tls"] == 0
+    await svc.startup()
+    assert (await db.fetchone("SELECT base_url FROM panels WHERE id=1"))["base_url"] == row["base_url"]
 
 
 @pytest.mark.parametrize("status,member,allowed", [
