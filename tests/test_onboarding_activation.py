@@ -145,3 +145,19 @@ async def test_secondary_panel_starts_shared_clock_and_retries_sync(svc, user, p
         assert (await svc.get_key(user)).expiry_ms == deadline
     finally:
         await client.aclose()
+
+
+async def test_primary_key_edit_works_with_unreachable_extra_panel(svc, user, panel, clock):
+    other = MockPanel()
+    client = XUIClient(f"http://mock/{other.base_path}", other.username, other.password,
+                      transport=httpx.ASGITransport(app=other.app), retries=1)
+    try:
+        await svc.add_panel(ADMIN, name="Offline extra", base_url="http://mock", username="test",
+            password="test", server_host="other.example.test", client_override=client)
+        key = await svc.grant_plan(ADMIN, user, "vpn_1m", panel_id=0)
+        other.down = True
+        updated = await svc.admin_adjust_key(ADMIN, user, add_days=7)
+        assert updated.expiry_ms == -37 * MS_PER_DAY
+        assert panel.client(key.email)["expiryTime"] == -37 * MS_PER_DAY
+    finally:
+        await client.aclose()

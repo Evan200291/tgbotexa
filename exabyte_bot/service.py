@@ -511,15 +511,21 @@ class Service:
     async def _refresh_pending_expiry(self, sub: aiosqlite.Row) -> aiosqlite.Row:
         """Read first-use deadlines before a mutation can overwrite a panel's activation.
 
-        Call under the user's lock. An unreachable panel aborts the mutation rather
-        than resetting a potentially activated key back to an unused duration.
+        Call under the user's lock. Only panels on which this key can be used
+        determine its first-use deadline. Other configured panels may be offline.
         """
         if sub["expiry_ms"] >= 0:
             return sub
-        clients = [self.xui]
-        for panel in await self.db.fetchall("SELECT * FROM panels WHERE enabled=1"):
-            client, _ = await self._get_extra_client(panel)
-            clients.append(client)
+        multi_server = bool(sub["multi_server"])
+        assigned_panel = int(sub["panel_id"] or 0)
+        clients = [self.xui] if multi_server or assigned_panel == 0 else []
+        if multi_server or assigned_panel > 0:
+            for panel in await self.db.fetchall("SELECT * FROM panels WHERE enabled=1"):
+                if multi_server or int(panel["id"]) == assigned_panel:
+                    client, _ = await self._get_extra_client(panel)
+                    clients.append(client)
+        if not clients:
+            raise PanelUnavailable("Assigned 3X-UI panel is unavailable")
         deadlines = []
         for client in clients:
             traffic = await client.get_traffic(sub["xui_email"])
