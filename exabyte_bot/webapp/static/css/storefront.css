@@ -1,0 +1,62 @@
+/* Telegram storefront. The glass navigation sits above opaque, full-width sections. */
+:root {
+  color-scheme: dark;
+  --bg: #061222;
+  --surface: #0d233c;
+  --field: #102d4b;
+  --text: #f5f9ff;
+  --text-muted: #adc2d8;
+  --accent: #64dcff;
+  --border: #29445e;
+  --ink: #032235;
+  --glass: rgba(10,32,55,.88);
+  --gutter: clamp(10px,3vw,20px);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg:#eaf2f9; --surface:#fff; --field:#edf5fa; --text:#0b233f;
+  --text-muted:#405c73; --border:#b9ccd9; --glass:rgba(240,249,255,.91);
+  --accent:#00759a; --ink:white;
+}
+:root[data-store="outline"] { --accent:#74e1bf; --ink:#082c25 }
+:root[data-store="outline"][data-theme="light"] { --accent:#006e56; --ink:white }
+* { box-sizing:border-box }
+body { margin:0; color:var(--text); background:var(--bg); font:15px/1.6 system-ui,"Myanmar Text",sans-serif }
+.app-shell { width:100%; margin:0 auto; padding:0 0 calc(82px + env(safe-area-inset-bottom)); }
+.hidden { display:none!important }
+h1,h2,h3,p,figure { margin:0 }
+h1 { font-size:1.25rem } h2,h3 { font-size:1.04rem }
+p,.stat-row { margin-block:4px }
+.muted,.small,.stat-label,.stat-tile-lbl { color:var(--text-muted) }
+.small { font-size:.84rem }
+.home-heading,#view-plans>h1,.utilities { padding:10px var(--gutter); display:flex; align-items:center; justify-content:space-between; gap:8px }
+.tab-view,.tab-view>div[id$="container"],#key-servers-list { display:grid; gap:10px; min-width:0 }
+.card { min-width:0; background:var(--surface); padding:12px var(--gutter); border-block:1px solid var(--border) }
+button,input,select,textarea,.btn { font:inherit; border-radius:0 }
+button,.btn { cursor:pointer; touch-action:manipulation }
+.btn,.theme-btn,.package { appearance:none; color:var(--text); background:var(--field); border:1px solid var(--border); padding:8px 11px; min-height:44px; text-decoration:none }
+.btn { display:inline-flex; align-items:center; justify-content:center; text-align:center; font-weight:600 }
+.btn-primary,.btn-jade { background:var(--accent); color:var(--ink); border-color:var(--accent) }
+.btn-danger { color:var(--text); border-color:#c96572 }
+button:disabled { opacity:.58; cursor:default }
+:focus-visible { outline:2px solid var(--accent); outline-offset:-3px }
+.server-actions,.package-grid,.download-grid,.stats-grid { display:grid; gap:8px; grid-template-columns:repeat(2,minmax(0,1fr)) }
+.server-actions { grid-template-columns:minmax(0,2fr) minmax(0,1fr); align-items:stretch; margin-top:8px }
+.server-actions>div { grid-column:1/-1;color:var(--text-muted) }
+.btn-row,.utilities { display:flex; flex-wrap:wrap; gap:8px }
+.btn-row,.field { margin-block:8px }
+.input,.textarea { width:100%; min-width:0; color:var(--text); background:var(--field); border:1px solid var(--border); padding:8px; min-height:44px }
+label { display:block }
+.package { display:grid; align-content:center; gap:4px; min-height:72px; text-align:left; background:var(--surface); border:0; border-inline-start:3px solid var(--accent) }
+.package span,.stat-tile-num { color:var(--accent); font-weight:650 }
+.package:active,.btn:active { filter:brightness(.88) }
+.bottom-dock { position:fixed; z-index:3; inset:auto 0 0; display:grid; grid-template-columns:repeat(3,1fr); padding-bottom:env(safe-area-inset-bottom); background:var(--glass); border-top:1px solid var(--border); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%) }
+.dock-tab { min-height:52px; border:0; border-top:2px solid transparent; background:transparent; color:var(--text-muted); font-weight:600 }
+.dock-tab.active { border-color:var(--accent); color:var(--accent) }
+.setup-steps { padding-inline-start:1.6rem }.setup-steps li { margin-bottom:8px }
+.screenshot-guide { margin:12px 0 }.screenshot-guide img,img.shot-preview { max-width:100%; height:auto }
+.stat-row { display:flex; justify-content:space-between; gap:12px }
+.stat-val,.mono-box { overflow-wrap:anywhere }.stat-tile,.mono-box { padding:8px;background:var(--field) }
+.toast { position:fixed; z-index:5; bottom:76px; left:10px; right:10px; padding:10px; background:var(--field);border:1px solid var(--accent) }
+.lotus-divider { display:none }.utilities { justify-content:flex-end }
+@media(prefers-reduced-transparency:reduce){.bottom-dock{background:var(--surface);backdrop-filter:none}}

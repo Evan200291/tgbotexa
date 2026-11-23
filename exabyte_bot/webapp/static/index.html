@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Exabyte Digital Store</title>
   <link rel="icon" type="image/svg+xml" href="/static/brand/favicon.svg">
-  <link rel="stylesheet" href="/static/css/theme.css">
+  <link rel="stylesheet" href="/static/css/storefront.css?v=1">
   <script src="https://telegram.org/js/telegram-web-app.js" async></script>
 </head>
 <body>
@@ -13,24 +13,7 @@
   <div id="toast" class="toast hidden" role="alert"></div>
 
   <main class="app-shell">
-    <!-- Hero Header with Exabyte Logo & Decorative Pagoda Skyline -->
-    <header class="hero-header">
-      <div class="hero-top">
-        <div class="brand-lockup">
-          <img src="/static/brand/logo.svg" alt="Exabyte Logo" class="brand-logo">
-          <div>
-            <div class="brand-title">Exabyte Digital Store</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <button id="dock-admin-tab" class="theme-btn hidden" data-go-tab="admin" aria-label="Admin">⚙</button>
-          <button id="dev-role-btn" class="theme-btn hidden" type="button" title="Switch Customer/Admin Preview">👑</button>
-          <button id="theme-toggle" class="theme-btn" type="button" aria-label="အလင်း / အမှောင် ပြောင်းမည်">🌙</button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Skeleton loader shown while bootstrap API loads -->
+<!-- Skeleton loader shown while bootstrap API loads -->
     <section id="loading-view">
       <p role="status">အကောင့် အချက်အလက်များ ရယူနေသည်…</p>
       <a class="btn btn-secondary" href="">ပြန်ဖွင့်မည်</a>
@@ -90,20 +73,14 @@
         </div>
       </div>
 
-      <div class="card">
-        <h2 style="font-size:1.1rem;"> VPN Plan များ ရွေးချယ်ပါ</h2>
-        <p style="color:var(--text-muted);font-size:0.92rem;margin:0;">
-          Data အကန့်အသတ်မရှိ (Unlimited) • စက် 1 လုံး • မြန်နှုန်းမြင့် ဆာဗာများ
-        </p>
-      </div>
-
+      <h1>VPN Plans</h1>
       <div id="plans-container"></div>
     </section>
 
     <!-- One shared Outline guide for all devices -->
     <section id="view-guide" class="tab-view hidden">
       <div class="card">
-        <div class="eyebrow">GET CONNECTED</div>
+        
         <h2>Outline ချိတ်ဆက်နည်း</h2>
         <p class="muted">အဆင့် ၃ ဆင့်ဖြင့် စတင်သုံးပါ။</p>
         <ol class="setup-steps">
@@ -128,6 +105,7 @@
         <p class="muted">ချိတ်ဆက်မရပါက Support ကို ဆက်သွယ်ပါ။</p>
         <a id="btn-support-link" class="btn btn-secondary" href="#" target="_blank" rel="noopener">Support ဆက်သွယ်မည်</a>
       </div>
+    <div class="utilities"><button id="dock-admin-tab" class="theme-btn hidden" data-go-tab="admin" aria-label="Admin">⚙</button> <button id="dev-role-btn" class="theme-btn hidden" type="button" title="Switch Customer/Admin Preview">👑</button> <button id="theme-toggle" class="theme-btn" type="button" aria-label="အလင်း / အမှောင် ပြောင်းမည်">🌙</button></div>
     </section>
 
     <!-- TAB 5: FULL WEB ADMIN PANEL -->
@@ -267,6 +245,6 @@
     </button>
   </nav>
 
-  <script src="/static/js/app.js?v=20261124-2"></script>
+  <script src="/static/js/app.js?v=20261124-3"></script>
 </body>
 </html>

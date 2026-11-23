@@ -375,7 +375,7 @@
       sel.className = "input";
       const optNew = document.createElement("option");
       optNew.value = "0";
-      optNew.textContent = "➕ Key အသစ်ဝယ်မည် (နောက်ထပ် Key 1 ခု ထပ်ယူမည်)";
+      optNew.textContent = "Key အသစ်ဝယ်မည်";
       sel.appendChild(optNew);
       existingKeys.forEach((k, idx) => {
         const opt = document.createElement("option");
@@ -401,7 +401,7 @@
         availServers.forEach((s) => {
           const o = document.createElement("option");
           o.value = String(s.id);
-          o.textContent = "🌐 " + s.name + " (" + s.host + ")";
+          o.textContent = s.name;
           srvSel.appendChild(o);
         });
         srvSel.value = String(state.selectedPanelId || 0);
@@ -461,12 +461,8 @@
     try {
       const boot = await api("/api/bootstrap", { signal: controller.signal });
       state.boot = boot;
-      document.querySelectorAll(".brand-title").forEach(el => { el.textContent = boot.store.name; });
       document.title = boot.store.name;
-      document.querySelectorAll(".brand-logo").forEach(el => {
-        el.alt = boot.store.name;
-        el.src = boot.store.name === "Outline Plus MM" ? "/static/brand/outlineplus.svg" : "/static/brand/logo.svg";
-      });
+      document.documentElement.dataset.store = boot.store.name === "Outline Plus MM" ? "outline" : "exabyte";
       document.getElementById("loading-view").classList.add("hidden");
       const supLink = document.getElementById("btn-support-link");
       if (supLink && boot.store && boot.store.support_url) {
@@ -558,7 +554,7 @@
               shotUrl +
               '" target="_blank" rel="noopener"><img class="shot-preview" src="' +
               shotUrl +
-              '" alt="Payment Screenshot" style="max-height:160px;border-radius:8px;border:1px solid var(--border);"></a><div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">(Click to view full screenshot)</div></div>'
+              '" alt="Payment Screenshot" style="max-height:160px;border:1px solid var(--border);"></a><div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">(Click to view full screenshot)</div></div>'
             : o.screenshot
             ? '<div class="mono-box">Telegram Photo ID: ' + o.screenshot + "</div>"
             : "";
