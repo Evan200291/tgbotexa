@@ -116,6 +116,7 @@
     }
     const resp = await fetch(path, {
       method: options.method || "GET",
+      signal: options.signal,
       headers: headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
@@ -455,8 +456,10 @@
   }
 
   async function refreshBootstrap() {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const boot = await api("/api/bootstrap");
+      const boot = await api("/api/bootstrap", { signal: controller.signal });
       state.boot = boot;
       document.querySelectorAll(".brand-title").forEach(el => { el.textContent = boot.store.name; });
       document.title = boot.store.name;
@@ -491,7 +494,7 @@
       view.classList.remove("hidden");
       document.querySelectorAll(".tab-view").forEach(el => el.classList.add("hidden"));
       const card = document.createElement("div"); card.className = "card";
-      const text = document.createElement("p"); text.textContent = e.message; card.appendChild(text);
+      const text = document.createElement("p"); text.textContent = controller.signal.aborted ? "ချိတ်ဆက်ချိန် ကြာနေပါတယ်။ ပြန်စမ်းကြည့်ပါ။" : e.message; card.appendChild(text);
       if (e.joinUrl) {
         const join = document.createElement("a"); join.className = "btn btn-primary";
         join.textContent = "ချန်နယ်သို့ ဝင်မည်"; join.href = e.joinUrl;
@@ -501,10 +504,7 @@
       retry.textContent = e.joinUrl ? "ဝင်ပြီးပါပြီ · ပြန်စစ်မည်" : "ပြန်ကြိုးစားမည်";
       retry.onclick = refreshBootstrap; card.appendChild(retry); view.replaceChildren(card);
     } finally {
-      setTimeout(() => {
-        const sp = document.getElementById("splash");
-        if (sp) sp.classList.add("hidden");
-      }, 280);
+      clearTimeout(timeout);
     }
   }
 

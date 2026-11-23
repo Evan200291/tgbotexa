@@ -247,7 +247,7 @@ def create_webapp(
         if settings.store_name == "Outline Plus MM":
             content = content.replace("/static/brand/logo.svg", "/static/brand/outlineplus.svg")
             content = content.replace("/static/brand/favicon.svg", "/static/brand/outlineplus.svg")
-        return HTMLResponse(content)
+        return HTMLResponse(content, headers={"Cache-Control": "no-cache"})
 
     @app.get("/admin", response_class=HTMLResponse)
     @app.get("/superadmin", response_class=HTMLResponse)

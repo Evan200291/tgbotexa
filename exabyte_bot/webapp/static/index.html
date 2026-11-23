@@ -9,13 +9,6 @@
   <script src="https://telegram.org/js/telegram-web-app.js" async></script>
 </head>
 <body>
-  <!-- Short branded splash screen (< 1s) -->
-  <div id="splash" class="splash-overlay" role="status" aria-label="Loading Exabyte Digital Store">
-    <img src="/static/brand/logo.svg" alt="Exabyte" width="76" height="76" class="brand-logo">
-    <div class="brand-title">Exabyte Digital Store</div>
-    <div class="brand-tagline">လုံခြုံ မြန်ဆန် စိတ်ချရသော ဒစ်ဂျစ်တယ်ဆိုင်</div>
-  </div>
-
   <!-- Toast notification banner -->
   <div id="toast" class="toast hidden" role="alert"></div>
 
@@ -39,9 +32,8 @@
 
     <!-- Skeleton loader shown while bootstrap API loads -->
     <section id="loading-view">
-      <div class="skeleton"></div>
-      <div class="skeleton"></div>
-      <div class="skeleton"></div>
+      <p role="status">အကောင့် အချက်အလက်များ ရယူနေသည်…</p>
+      <a class="btn btn-secondary" href="">ပြန်ဖွင့်မည်</a>
     </section>
 
     <!-- TAB 1: HOME DASHBOARD -->
@@ -275,6 +267,6 @@
     </button>
   </nav>
 
-  <script src="/static/js/app.js"></script>
+  <script src="/static/js/app.js?v=20261124-2"></script>
 </body>
 </html>
