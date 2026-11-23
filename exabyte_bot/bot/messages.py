@@ -310,7 +310,7 @@ def _server_button_label(p: dict[str, object], *, exabyte_ui: bool = False) -> s
         name = str(p.get("name") or "").lower()
         pid = int(p.get("id") or 0)  # type: ignore[arg-type]
         if "sgsep" in host or "singapore" in name or "sg" in name:
-            return "Singapore server 🇸🇬"
+            return "🇸🇬 Singapore Server"
         if "tpone" in host or "thailand" in name or "bangkok" in name or pid == 0:
             return "🇹🇭 Thailand Server (Bangkok)"
         return f"🌐 {p['name']}"
@@ -495,10 +495,10 @@ def guide_menu_kb(settings: Settings | None = None) -> InlineKeyboardMarkup:
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬇️ Outline APK ရယူရန်", callback_data="download:apk")],
+        [InlineKeyboardButton(text="⬇️ Android Download", callback_data="download:apk")],
         [InlineKeyboardButton(text="Google Play", url=PLAY_STORE_URL),
          InlineKeyboardButton(text="App Store", url=APP_STORE_URL)],
-        [InlineKeyboardButton(text="Windows ဒေါင်းလုဒ်", url=WINDOWS_URL),
+        [InlineKeyboardButton(text="Windows Download", url=WINDOWS_URL),
          InlineKeyboardButton(text="Mac App Store", url=MAC_URL)],
         bottom_row,
     ])

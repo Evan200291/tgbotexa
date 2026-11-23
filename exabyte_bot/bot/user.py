@@ -143,7 +143,7 @@ def build_user_router() -> Router:
         intro = t("trial_ok", gb=P.TRIAL_QUOTA_GB, days=P.TRIAL_DAYS)
         await send_key_card(bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc, settings=settings)
 
-    @r.message(F.text.in_({t("btn_buy"), t("exabyte_btn_buy")}))
+    @r.message(F.text.in_({t("btn_buy"), t("exabyte_btn_buy"), "🛒 Plan ဝယ်မည်"}))
     async def msg_plans(msg: Message, svc: Service, settings: Settings) -> None:
         uid = msg.from_user.id if msg.from_user else msg.chat.id
         res = await svc.get_reseller_info(uid)

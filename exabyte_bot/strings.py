@@ -34,13 +34,13 @@ S: dict[str, str] = {
         '🎁 <b>"အခမဲ့ စမ်းသုံးမည်"</b> ခလုတ်ကို နှိပ်ပြီး အပတ်တိုင်း <b>5GB</b> လက်ဆောင် ယူလို့ရနေပြီနော် 🫡\n\n'
         "✅ <b>မြန်နှုန်းမြင့် Premium Server</b> များကိုသာ သုံးပေးထားပါတယ်။\n"
         "✅ <b>NOC Engineer</b> များက <b>24/7 Shift</b> များဖြင့် Standby ဝန်ဆောင်မှု ပေးသည့် Service ပါ။\n\n"
-        '🛒 ဝယ်ယူအသုံးပြုလိုပါက <b>"Plan ဝယ်မည်"</b> ခလုတ်ကို နှိပ်ပြီး စောင့်စရာမလိုဘဲ အလွယ်တကူ ဝယ်ယူနိုင်ပါပြီခင်ဗျာ။'
+        '💶 ဝယ်ယူအသုံးပြုလိုပါက <b>"Plan ဝယ်မည်"</b> ခလုတ်ကို နှိပ်ပြီး စောင့်စရာမလိုဘဲ အလွယ်တကူ ဝယ်ယူနိုင်ပါပြီခင်ဗျာ။'
     ),
     "exabyte_btn_open_app": "📳 My Info",
     "exabyte_btn_buy": "💶 Plan ဝယ်မည်",
     "exabyte_btn_support": "💬 Admin နှင့်စကားပြောမည်",
     "exabyte_plan_choose_server": (
-        "ဝယ်ယူထားသည့် <b>{plan_name}</b> package အတွက် <b>server region</b> ရွေးပေးပါ။"
+        "<b>{plan_name}</b> အတွက် အသုံးပြုလိုသော ဆာဗာကို ရွေးပါ။"
     ),
     "exabyte_order_created": (
         "• <b>Plan:</b> {plan_name} — {days} ရက်\n"
@@ -64,7 +64,7 @@ S: dict[str, str] = {
     "myid_body": "🔑 သင့် Telegram ID: <code>{user_id}</code>",
     "btn_open_app": '📱 ဆိုင်ဖွင့်မည်',
     "btn_trial": '🎁 အခမဲ့ စမ်းသုံးမည်',
-    "btn_buy": '🛒 Plan ဝယ်မည်',
+    "btn_buy": '💶 Plan ဝယ်မည်',
     "btn_my_key": '🔑 ကျွန်ုပ်၏ Key / Data',
     "btn_usage": "📶 သုံးစွဲမှု စစ်မည်",
     "btn_guide": '📖 ချိတ်ဆက်နည်း',

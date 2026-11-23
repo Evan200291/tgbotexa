@@ -104,3 +104,11 @@ body {
 .dock-icon { font:1.05rem/1.1 system-ui }
 .dock-tab.active { background:linear-gradient(var(--tint),transparent) }
 @media(prefers-reduced-transparency:reduce){.bottom-dock{background:var(--surface);backdrop-filter:none}}
+
+/* Admin records and controls */
+[id^="adm-"][id$="-list"] { overflow-wrap:anywhere; scroll-margin-top:8px }
+[id^="adm-"][id$="-list"] > div { border-inline-start:2px solid var(--border); padding-inline:10px; padding-bottom:8px }
+#adm-users-list .btn-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px }
+[id^="adm-"][id$="-list"] .btn-sm { min-height:44px; padding:4px 6px; font-size:.83rem }
+.admin-pager { display:flex; align-items:center; justify-content:space-between; margin-top:12px; border-top:1px solid var(--border); padding-top:8px; color:var(--text-muted); font-variant-numeric:tabular-nums }
+.admin-pager .btn { font-size:.85rem }

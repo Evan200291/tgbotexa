@@ -13,7 +13,7 @@ from typing import Any
 
 from aiogram import Bot
 from aiogram.types import BufferedInputFile
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, SecretStr
@@ -667,13 +667,26 @@ def create_webapp(
 
     @app.get("/api/admin/overview")
     async def api_admin_overview(
+        users_page: int = Query(1, ge=1),
+        orders_page: int = Query(1, ge=1),
+        page_size: int | None = Query(None, ge=1, le=50),
         _admin: WebAppUser = Depends(require_admin),
     ) -> dict[str, Any]:
         now = svc.now()
         stats = await svc.stats()
+        totals = await svc.db.fetchone(
+            "SELECT (SELECT COUNT(*) FROM users) AS users, (SELECT COUNT(*) FROM orders) AS orders"
+        )
+        def page_info(total: int, requested: int, size: int) -> dict[str, int]:
+            pages = max(1, (total + size - 1) // size)
+            return {"page": min(requested, pages), "pages": pages, "total": total}
+
+        orders = page_info(totals["orders"], orders_page, page_size or 100)
+        users = page_info(totals["users"], users_page, page_size or 200)
         order_rows = await svc.db.fetchall(
             "SELECT o.*, u.username FROM orders o LEFT JOIN users u ON u.telegram_id=o.user_id "
-            "ORDER BY o.created_at DESC LIMIT 100"
+            "ORDER BY o.created_at DESC, o.code DESC LIMIT ? OFFSET ?",
+            (page_size or 100, (orders["page"] - 1) * (page_size or 100)),
         )
         orders_out = []
         shots_dir = settings.data_dir / "screenshots"
@@ -703,7 +716,8 @@ def create_webapp(
             })
 
         user_rows = await svc.db.fetchall(
-            "SELECT * FROM users ORDER BY last_seen_at DESC LIMIT 200"
+            "SELECT * FROM users ORDER BY last_seen_at DESC, telegram_id DESC LIMIT ? OFFSET ?",
+            (page_size or 200, (users["page"] - 1) * (page_size or 200)),
         )
         users_out = []
         for u in user_rows:
@@ -756,6 +770,7 @@ def create_webapp(
                 "today_revenue_text": fmt_mmk(stats["today_revenue"]),
                 "month_revenue_text": fmt_mmk(stats["month_revenue"]),
             },
+            "pagination": {"orders": orders, "users": users},
             "orders": orders_out,
             "users": users_out,
             "resellers": await svc.list_resellers(),

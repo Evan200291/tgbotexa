@@ -517,9 +517,51 @@
   }
 
   // ---------------- Web Admin Panel Rendering ----------------
-  async function loadAdminOverview() {
+  const adminPages = { orders: 1, users: 1, resellers: 1, panels: 1 };
+  const adminPageSize = 8;
+  let adminRequest = 0;
+
+  function renderAdminPager(section, info) {
+    const list = document.getElementById("adm-" + section + "-list");
+    if (info.pages <= 1) return;
+    const nav = document.createElement("nav");
+    nav.className = "admin-pager";
+    nav.setAttribute("aria-label", section + " pages");
+    function step(label, delta) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-secondary";
+      button.textContent = label;
+      const target = info.page + delta;
+      button.disabled = target < 1 || target > info.pages;
+      button.onclick = async () => {
+        adminPages[section] = target;
+        if (await loadAdminOverview(true)) list.scrollIntoView({ block: "start" });
+      };
+      return button;
+    }
+    const count = document.createElement("span");
+    count.textContent = info.page + " / " + info.pages;
+    nav.append(step("‹ Prev", -1), count, step("Next ›", 1));
+    list.append(nav);
+  }
+
+  async function loadAdminOverview(paging = false) {
     try {
-      const data = await api("/api/admin/overview");
+      const request = ++adminRequest;
+      const query = new URLSearchParams({
+        page_size: adminPageSize, orders_page: adminPages.orders, users_page: adminPages.users,
+      });
+      const data = await api("/api/admin/overview?" + query);
+      if (request !== adminRequest) return false;
+      for (const section of ["panels", "resellers"]) {
+        const rows = data[section] || [];
+        const pages = Math.max(1, Math.ceil(rows.length / adminPageSize));
+        const page = Math.min(adminPages[section], pages);
+        data.pagination[section] = { page, pages };
+        data[section] = rows.slice((page - 1) * adminPageSize, page * adminPageSize);
+      }
+      for (const [section, info] of Object.entries(data.pagination)) adminPages[section] = info.page;
       const st = data.stats;
       const grid = document.getElementById("adm-stats-grid");
       grid.innerHTML =
@@ -655,6 +697,8 @@
           const b = document.createElement("button");
           b.className = "btn btn-secondary btn-sm";
           b.textContent = lbl;
+          b.disabled = !k;
+          if (act === "revoke") b.className = "btn btn-danger btn-sm";
           b.onclick = () => adminUserAct(u.user_id, act);
           r.appendChild(b);
         });
@@ -792,6 +836,8 @@
         pList.appendChild(item);
       });
 
+      for (const [section, info] of Object.entries(data.pagination)) renderAdminPager(section, info);
+      if (paging === true) return true;
       // Populate store customization inputs
       const stCfg = data.store || {};
       document.getElementById("cfg-kbz-num").value = stCfg.kbz_number || "";

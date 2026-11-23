@@ -160,6 +160,17 @@ async def test_miniapp_customer_and_admin_web_flows(svc: Service, clock, tmp_pat
         assert ov.json()["orders"][0]["code"] == code
         assert f"/api/admin/orders/{code}/screenshot" in ov.json()["orders"][0]["screenshot"]
 
+        await svc.ensure_user(USER + 100)
+        headers = {"X-Telegram-Init-Data": admin_init}
+        first = (await client.get("/api/admin/overview?page_size=1", headers=headers)).json()
+        last = (await client.get(
+            "/api/admin/overview?page_size=1&users_page=999999", headers=headers
+        )).json()
+        assert len(first["users"]) == len(last["users"]) == 1
+        assert last["users"][0]["user_id"] != first["users"][0]["user_id"]
+        assert last["pagination"]["users"]["page"] == first["pagination"]["users"]["pages"]
+        assert last["orders"] == first["orders"]
+
         # Admin can view the uploaded screenshot binary via the endpoint
         shot_img = await client.get(
             f"/api/admin/orders/{code}/screenshot", headers={"X-Telegram-Init-Data": admin_init}
