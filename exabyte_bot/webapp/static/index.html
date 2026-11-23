@@ -27,10 +27,10 @@
           <img src="/static/brand/logo.svg" alt="Exabyte Logo" class="brand-logo">
           <div>
             <div class="brand-title">Exabyte Digital Store</div>
-            <div id="hdr-tagline" class="brand-tagline">လုံခြုံ မြန်ဆန် စိတ်ချရသော ဒစ်ဂျစ်တယ်ဆိုင်</div>
           </div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
+          <button id="dock-admin-tab" class="theme-btn hidden" data-go-tab="admin" aria-label="Admin">⚙</button>
           <button id="dev-role-btn" class="theme-btn hidden" type="button" title="Switch Customer/Admin Preview">👑</button>
           <button id="theme-toggle" class="theme-btn" type="button" aria-label="အလင်း / အမှောင် ပြောင်းမည်">🌙</button>
         </div>
@@ -46,57 +46,8 @@
 
     <!-- TAB 1: HOME DASHBOARD -->
     <section id="view-home" class="tab-view hidden">
-      <div class="welcome-strip"><div class="eyebrow">YOUR CONNECTION, SIMPLIFIED</div>
-      <h1>အင်တာနက်ကို လွတ်လပ်စွာ သုံးပါ။</h1>
-      <p class="muted">Outline VPN · ပထမဆုံး သုံးချိန်မှ သက်တမ်းစတင်မည်</p></div>
-      <div class="card account-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-          <h2 style="margin:0;font-size:1.1rem;">သင့် VPN အခြေအနေ</h2>
-          <span id="home-status-badge" class="badge badge-none">Key မရှိသေးပါ</span>
-        </div>
-
-        <div class="ring-wrap">
-          <div class="ring-center-label">
-            <svg class="ring-svg" viewBox="0 0 120 120" aria-hidden="true">
-              <circle class="ring-track" cx="60" cy="60" r="48"></circle>
-              <circle id="home-ring-arc" class="ring-progress" cx="60" cy="60" r="48" stroke-dasharray="301.6" stroke-dashoffset="301.6"></circle>
-            </svg>
-            <div id="home-ring-val" class="ring-value">—</div>
-            <div id="home-ring-sub" class="ring-sub">Data</div>
-          </div>
-          <div class="ring-meta">
-            <div class="stat-row">
-              <span class="stat-label">အမျိုးအစား</span>
-              <span id="home-kind" class="stat-val">—</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">လက်ကျန်ရက်</span>
-              <span id="home-days" class="stat-val">0 ရက်</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">ကုန်ဆုံးရက်</span>
-              <span id="home-expiry" class="stat-val">—</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">ဆာဗာအရေအတွက်</span>
-              <span id="home-servers-cnt" class="stat-val">1 လုံး</span>
-            </div>
-          </div>
-        </div>
-
-        <div id="home-quick-key-wrap" class="hidden" style="margin-top:10px;">
-          <div style="font-weight:700;font-size:0.9rem;margin-bottom:4px;">📋 သင့် VPN Key (တစ်ချက်နှိပ်၍ Copy ကူးပါ):</div>
-          <div id="home-quick-key-box" class="mono-box" role="button" tabindex="0"></div>
-        </div>
-
-        <div class="lotus-divider" aria-hidden="true">◈</div>
-
-        <div class="btn-row">
-          <button class="btn btn-primary" type="button" data-go-tab="key"> ကျွန်ုပ်၏ Key ကြည့်မည်</button>
-          <button class="btn btn-secondary" type="button" data-go-tab="plans"> Plan ဝယ်မည်</button>
-        </div>
-      </div>
-
+      <div class="home-heading"><h1>ကျွန်ုပ်၏ Key များ</h1><button class="btn btn-primary" type="button" data-go-tab="plans">＋ Key ဝယ်ရန်</button></div>
+      <div id="key-servers-list"></div>
       <!-- Free Trial Card -->
       <div class="card trial-card">
         <h3 style="font-size:1.05rem;"> အခမဲ့ စမ်းသပ် Key (5 GB / 7 ရက်)</h3>
@@ -104,46 +55,6 @@
           မြန်နှုန်းမြင့် Shadowsocks VPN ကို 5 GB (7 ရက်) အခမဲ့ စမ်းသပ်အသုံးပြုနိုင်ပါသည်။
         </p>
         <button id="btn-claim-trial" class="btn btn-primary" type="button"> အခမဲ့ စမ်းသပ် ရယူမည်</button>
-      </div>
-    </section>
-
-    <!-- TAB 2: MY KEY -->
-    <section id="view-key" class="tab-view hidden">
-      <div id="key-empty-card" class="card hidden">
-        <h3> သင့်တွင် Key မရှိသေးပါ</h3>
-        <p style="color:var(--text-muted);">အခမဲ့ စမ်းသပ် Key ရယူပါ သို့မဟုတ် ငွေပေး Plan ဝယ်ယူပါ။</p>
-        <div class="btn-row">
-          <button class="btn btn-primary" type="button" data-go-tab="home"> အခမဲ့ စမ်းသပ်</button>
-          <button class="btn btn-secondary" type="button" data-go-tab="plans"> Plan ဝယ်မည်</button>
-        </div>
-      </div>
-
-      <div id="key-content-card" class="card hidden">
-        <h2 style="font-size:1.1rem;"> သင့် VPN Key</h2>
-        <p style="color:var(--text-muted);font-size:0.9rem;">
-          Key ကို ကူးယူပြီး Outline ထဲသို့ ထည့်ပါ။
-        </p>
-
-        <div id="key-servers-list"></div>
-
-        <div id="key-sub-wrap" class="hidden">
-          <div class="lotus-divider" aria-hidden="true">◈</div>
-          <div style="font-weight:700;font-size:0.95rem;">🌐 All-in-One Subscription Link (ဆာဗာအားလုံး):</div>
-          <div id="key-sub-box" class="mono-box" role="button" tabindex="0"></div>
-          <button id="btn-copy-sub" class="btn btn-secondary btn-sm" type="button">📋 Subscription Link ကူးယူမည်</button>
-        </div>
-
-        <div class="lotus-divider" aria-hidden="true">◈</div>
-
-        <!-- QR is hidden for clean UI -->
-        <div class="qr-frame hidden" style="display:none;">
-          <img id="key-qr-img" alt="Shadowsocks QR Code" src="/static/brand/logo.svg">
-        </div>
-
-        <div class="btn-row">
-          <button id="btn-regen-key" class="btn btn-secondary hidden" type="button">🔄 Key အသစ်လဲမည် (24h တစ်ကြိမ်)</button>
-          <button class="btn btn-secondary" type="button" data-go-tab="guide"> ထည့်သွင်းနည်း လမ်းညွှန်</button>
-        </div>
       </div>
     </section>
 
@@ -210,16 +121,15 @@
         </ol>
         <div class="download-grid">
           <a class="btn btn-primary" href="/downloads/outline.apk" download>Android APK ဒေါင်းလုဒ်</a>
-          <a class="btn btn-secondary" href="https://play.google.com/store/apps/details?id=org.outline.android.client" target="_blank" rel="noopener">Google Play</a>
           <a class="btn btn-secondary" href="https://apps.apple.com/app/outline-app/id1356177741" target="_blank" rel="noopener">iPhone / iPad</a>
           <a class="btn btn-secondary" href="https://s3.amazonaws.com/outline-releases/client/windows/stable/Outline-Client.exe" target="_blank" rel="noopener">Windows ဒေါင်းလုဒ်</a>
           <a class="btn btn-secondary" href="https://apps.apple.com/app/outline-app/id1356178125" target="_blank" rel="noopener">Mac App Store</a>
         </div>
         <p class="muted small">APK သည် တရားဝင် Outline download မှ ရယူထားသော မိတ္တူဖြစ်ပါသည်။ အပ်ဒိတ်များကို မိမိဘာသာ ထည့်သွင်းရန် လိုအပ်ပါသည်။</p>
         <details class="screenshot-guide"><summary>ပုံဖြင့် ကြည့်မည်</summary>
-          <img src="/static/guides/outline-quickstart.jpg" alt="Outline: Plus, Add server, and Connect buttons highlighted" loading="lazy">
+          <img src="/static/guides/outline-import.jpg" alt="Outline: Plus, Add server, and Connect buttons highlighted" loading="lazy">
         </details>
-        <button class="btn btn-secondary" type="button" data-go-tab="key">မိမိ Key ကို ကူးယူမည်</button>
+        <button class="btn btn-secondary" type="button" data-go-tab="home">မိမိ Key ကို ကူးယူမည်</button>
       </div>
       <div class="card support-card">
         <h3>အကူအညီ လိုပါသလား?</h3>
@@ -357,17 +267,11 @@
     <button class="dock-tab active" aria-current="page" type="button" data-tab="home">
       <span class="dock-icon"></span><span>ပင်မ</span>
     </button>
-    <button class="dock-tab" type="button" data-tab="key">
-      <span class="dock-icon"></span><span>Key</span>
-    </button>
     <button class="dock-tab" type="button" data-tab="plans">
       <span class="dock-icon"></span><span>Plan ဝယ်ရန်</span>
     </button>
     <button class="dock-tab" type="button" data-tab="guide">
       <span class="dock-icon"></span><span>လမ်းညွှန်</span>
-    </button>
-    <button id="dock-admin-tab" class="dock-tab hidden" type="button" data-tab="admin">
-      <span class="dock-icon">⚙️</span><span>Admin</span>
     </button>
   </nav>
 

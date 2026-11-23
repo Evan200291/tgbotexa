@@ -762,7 +762,7 @@ def create_webapp(
             "panels": await svc.list_panels(),
             "plans": [
                 {"id": p.id, "name": p.name, "days": p.days, "price_text": fmt_mmk(p.price_mmk)}
-                for p in P.all_plans()
+                for p in P.all_plans(exabyte=settings.is_exabyte_bot)
             ],
             "store": await _effective_store_config(),
         }

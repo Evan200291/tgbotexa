@@ -187,6 +187,7 @@
   function switchTab(tab) {
     haptic("selection");
     state.activeTab = tab;
+    if (tab !== "admin") state.devAdmin = false;
     document.querySelectorAll(".tab-view").forEach((el) => {
       el.classList.toggle("hidden", el.id !== "view-" + tab);
     });
@@ -202,70 +203,6 @@
 
   function renderHome(boot) {
     const st = boot.status;
-    const badge = document.getElementById("home-status-badge");
-    const arc = document.getElementById("home-ring-arc");
-    const rVal = document.getElementById("home-ring-val");
-    const rSub = document.getElementById("home-ring-sub");
-    const kindEl = document.getElementById("home-kind");
-    const daysEl = document.getElementById("home-days");
-    const expEl = document.getElementById("home-expiry");
-    const srvCnt = document.getElementById("home-servers-cnt");
-    const circum = 301.6;
-
-    arc.classList.remove("warn", "crit");
-    if (!st.has_key) {
-      badge.className = "badge badge-none";
-      badge.textContent = "Key မရှိသေးပါ";
-      arc.style.strokeDashoffset = String(circum);
-      rVal.textContent = "5 GB";
-      rSub.textContent = "အခမဲ့ စမ်းသုံးပါ";
-      kindEl.textContent = "—";
-      daysEl.textContent = "0 ရက်";
-      expEl.textContent = "—";
-      srvCnt.textContent = "1 လုံး";
-    } else {
-      const isAct = st.status === "active";
-      badge.className = "badge " + (isAct ? "badge-active" : "badge-expired");
-      badge.textContent = isAct
-        ? "အသုံးပြုနေဆဲ"
-        : st.status === "disabled"
-        ? "ယာယီပိတ်ထားသည်"
-        : "သက်တမ်းကုန်ပြီ";
-
-      kindEl.textContent = st.kind === "paid" ? "ငွေပေး Plan" : "အခမဲ့ စမ်းသပ်";
-      daysEl.textContent = st.days_left + " ရက်";
-      expEl.textContent = st.pending_activation ? "စတင်မသုံးရသေးပါ" : fmtDateShort(st.expiry_at);
-      if (st.pending_activation) badge.textContent = "ချိတ်ဆက်ရန် အသင့်";
-      srvCnt.textContent = ((st.servers && st.servers.length) || 1) + " လုံး";
-
-      if (st.unlimited) {
-        arc.style.strokeDashoffset = "0";
-        if (!isAct) arc.classList.add("crit");
-        rVal.textContent = "∞";
-        rSub.textContent = fmtBytes(st.used_bytes) + " သုံးပြီး";
-      } else {
-        const ratio = st.quota_bytes > 0 ? Math.min(st.used_bytes / st.quota_bytes, 1) : 0;
-        const pct = Math.round(ratio * 100);
-        arc.style.strokeDashoffset = String(circum * (1 - ratio));
-        if (!isAct || ratio >= 1) arc.classList.add("crit");
-        else if (ratio >= 0.8) arc.classList.add("warn");
-        rVal.textContent = pct + "%";
-        rSub.textContent = fmtBytes(st.used_bytes) + " / " + fmtBytes(st.quota_bytes);
-      }
-    }
-
-    const qWrap = document.getElementById("home-quick-key-wrap");
-    const qBox = document.getElementById("home-quick-key-box");
-    if (qWrap && qBox) {
-      if (st.has_key && st.link) {
-        qWrap.classList.remove("hidden");
-        qBox.textContent = st.link;
-        qBox.onclick = () => copyText(st.link, "VPN Key Link");
-      } else {
-        qWrap.classList.add("hidden");
-      }
-    }
-
     // Trial section + live countdown
     const trialBtn = document.getElementById("btn-claim-trial");
     const trialDesc = document.getElementById("trial-desc");
@@ -297,50 +234,22 @@
 
   function renderKey(boot) {
     const st = boot.status;
-    const emptyCard = document.getElementById("key-empty-card");
-    const contentCard = document.getElementById("key-content-card");
-    if (!st.has_key) {
-      emptyCard.classList.remove("hidden");
-      contentCard.classList.add("hidden");
-      return;
-    }
-    emptyCard.classList.add("hidden");
-    contentCard.classList.remove("hidden");
-
     const srvContainer = document.getElementById("key-servers-list");
     srvContainer.innerHTML = "";
-    const keysList = st.keys && st.keys.length ? st.keys : [st];
+    const keysList = st.keys && st.keys.length ? st.keys : (st.has_key ? [st] : []);
     const availServers = boot.available_servers || [];
 
     keysList.forEach((k, idx) => {
       const kCard = document.createElement("div");
-      kCard.style.padding = "10px 0";
-      if (idx > 0) {
-        kCard.style.borderTop = "1px solid var(--border)";
-        kCard.style.marginTop = "10px";
-      }
-
-      const dataDesc = k.unlimited
-        ? "♾️ Unlimited Data (1 Server Region)"
-        : "🌐 All Server Regions: ကျန် " +
-          fmtBytes(k.remaining_bytes != null ? k.remaining_bytes : Math.max(0, k.quota_bytes - k.used_bytes)) +
-          " / " +
-          fmtBytes(k.quota_bytes);
-
-      const hdr = document.createElement("div");
-      hdr.style.marginBottom = "8px";
-      hdr.innerHTML =
-        '<div style="font-weight:700;font-size:0.96rem;">🔑 Key #' +
-        (idx + 1) +
-        " (<code>" +
-        (k.email || "") +
-        "</code>)</div>" +
-        '<div style="font-size:0.86rem;color:var(--text-muted);">' +
-        dataDesc +
-        " • လက်ကျန် " +
-        k.days_left +
-        " ရက်" + (k.pending_activation ? " · ပထမဆုံး သုံးချိန်မှ စတင်မည်" : "") + "</div>";
-      kCard.appendChild(hdr);
+      kCard.className = "card key-card";
+      const heading = document.createElement("h2");
+      heading.textContent = "Key " + (idx + 1) + " · " + (k.kind === "trial" ? "Trial" : "Plan");
+      const detail = document.createElement("p");
+      detail.className = "muted";
+      detail.textContent = (k.unlimited ? "Unlimited" : fmtBytes(k.used_bytes) + " / " + fmtBytes(k.quota_bytes)) +
+        " · " + (k.pending_activation ? "ပထမဆုံး ချိတ်ဆက်ချိန်မှ " : "") + k.days_left + " ရက်" +
+        (k.status === "active" ? "" : " · " + k.status);
+      kCard.append(heading, detail);
 
       const servers =
         k.servers && k.servers.length
@@ -353,16 +262,19 @@
         title.style.fontWeight = "600";
         title.style.fontSize = "0.9rem";
         title.textContent = srv.name;
-        const box = document.createElement("div");
-        box.className = "mono-box";
-        box.tabIndex = 0;
-        box.setAttribute("role", "button");
-        box.setAttribute("aria-label", "VPN Key ကူးယူမည်");
-        box.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); copyText(srv.link, srv.name); } });
-        box.textContent = srv.link;
-        box.addEventListener("click", () => copyText(srv.link, srv.name));
-        wrap.appendChild(title);
-        wrap.appendChild(box);
+        const open = document.createElement("a");
+        open.className = "btn btn-primary";
+        open.textContent = "Add Key to Outline";
+        open.href = "/static/outline.html#" + encodeURIComponent(srv.link);
+        open.addEventListener("click", (event) => {
+          const tg = getTg();
+          if (tg && tg.openLink) {
+            event.preventDefault();
+            tg.openLink(open.href);
+          }
+        });
+        wrap.className = "server-actions";
+        wrap.append(title, open);
         const copy = document.createElement("button");
         copy.type = "button"; copy.className = "btn btn-secondary btn-sm";
         copy.textContent = "Key ကူးယူမည်";
@@ -401,15 +313,6 @@
       srvContainer.appendChild(kCard);
     });
 
-    const subWrap = document.getElementById("key-sub-wrap");
-    if (subWrap) {
-      subWrap.classList.add("hidden");
-    }
-
-    const regenBtn = document.getElementById("btn-regen-key");
-    if (regenBtn) {
-      regenBtn.classList.add("hidden");
-    }
   }
 
   function renderPlans(boot) {
@@ -455,11 +358,7 @@
     if (st.is_reseller || Number(st.balance_mmk || 0) > 0) {
       const resBanner = document.createElement("div");
       resBanner.className = "card";
-      resBanner.innerHTML =
-        '<div style="font-weight:700;font-size:0.96rem;">💼 Reseller အကောင့် • 💰 လက်ကျန်ငွေ: <span style="color:var(--primary);">' +
-        (st.balance_text || "0 ကျပ်") +
-        "</span></div>" +
-        '<div style="font-size:0.86rem;color:var(--text-muted);margin-top:4px;">🏷️ Reseller အထူးနှုန်း: <b>1 လ = 2,400 ကျပ်</b> (လက်ကျန်ငွေမှ တိုက်ရိုက် ချက်ချင်းဝယ်ယူနိုင်ပါသည်)</div>';
+      resBanner.textContent = "Wallet · " + st.balance_text;
       container.appendChild(resBanner);
     }
 
@@ -514,35 +413,22 @@
       container.appendChild(modeCard);
     }
 
-    (boot.plans || []).forEach((p) => {
-      const cls = p.months === 1 ? "plan-1m" : p.months === 3 ? "plan-3m" : "plan-6m";
-      const card = document.createElement("div");
-      card.className = "plan-card " + cls;
-
-      const featHtml = p.unlimited
-        ? "📶 Data အကန့်အသတ်မရှိ (1 Server Region) • 📱 စက် " + p.devices + " လုံး • ⏳ " + p.days + " ရက်"
-        : "🌐 " + p.quota_gb + " GB (Server Region အားလုံး စိတ်ကြိုက်ပြောင်းသုံးနိုင်သည်) • ⏳ " + p.days + " ရက်";
-
-      card.innerHTML =
-        '<div class="plan-head">' +
-        '<div class="plan-name">' + (p.unlimited ? "🛡️ " : "🌐 ") +
-        p.name +
-        "</div>" +
-        '<div class="plan-price-wrap">' +
-        '<span class="plan-price">' +
-        p.price_text +
-        "</span></div>" +
-        "</div>" +
-        '<div class="plan-features">' + featHtml + "</div>";
-
-      const buyBtn = document.createElement("button");
-      buyBtn.type = "button";
-      buyBtn.className = "btn " + (p.best_value ? "btn-primary" : "btn-secondary");
-      buyBtn.textContent = "💳 " + p.name + " ဝယ်ယူမည် (" + p.price_text + ")";
-      buyBtn.addEventListener("click", () => startOrder(p.id));
-      card.appendChild(buyBtn);
-      container.appendChild(card);
-    });
+    const grid = document.createElement("div");
+    grid.className = "package-grid";
+    const plans = [...boot.plans].sort((a,b) => a.months - b.months || Number(b.unlimited) - Number(a.unlimited));
+    for (const plan of plans) {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "package";
+      const label = document.createElement("strong");
+      label.textContent = plan.name;
+      const price = document.createElement("span");
+      price.textContent = plan.price_text;
+      card.append(label, price);
+      card.onclick = () => startOrder(plan.id);
+      grid.append(card);
+    }
+    container.append(grid);
   }
 
   async function startOrder(planId) {
@@ -579,8 +465,6 @@
         el.src = boot.store.name === "Outline Plus MM" ? "/static/brand/outlineplus.svg" : "/static/brand/logo.svg";
       });
       document.getElementById("loading-view").classList.add("hidden");
-      document.getElementById("hdr-tagline").textContent =
-        (boot.store && boot.store.tagline) || "လုံခြုံ မြန်ဆန် စိတ်ချရသော ဒစ်ဂျစ်တယ်ဆိုင်";
       const supLink = document.getElementById("btn-support-link");
       if (supLink && boot.store && boot.store.support_url) {
         supLink.href = boot.store.support_url;
@@ -1031,20 +915,7 @@
         haptic("success");
         showToast(res.message);
         await refreshBootstrap();
-        switchTab("key");
-      } catch (e) {
-        haptic("error");
-        showToast(e.message);
-      }
-    });
-
-    document.getElementById("btn-regen-key").addEventListener("click", async () => {
-      haptic("medium");
-      try {
-        const res = await api("/api/key/regenerate", { method: "POST" });
-        haptic("success");
-        showToast(res.message);
-        await refreshBootstrap();
+        switchTab("home");
       } catch (e) {
         haptic("error");
         showToast(e.message);
@@ -1064,7 +935,7 @@
           haptic("success");
           showToast("✨ လက်ကျန်ငွေဖြင့် ဝယ်ယူပြီး Key ထုတ်ပေးပြီးပါပြီ!");
           await refreshBootstrap();
-          switchTab("key");
+          switchTab("home");
         } catch (e) {
           haptic("error");
           showToast(e.message);
@@ -1129,7 +1000,7 @@
         showToast("✨ Key ချက်ချင်း ထုတ်ပေးပြီးပါပြီ!");
         input.value = "";
         await refreshBootstrap();
-        switchTab("key");
+        switchTab("home");
       } catch (e) {
         haptic("error");
         showToast(e.message);

@@ -215,7 +215,8 @@ async def test_miniapp_customer_and_admin_web_flows(svc: Service, clock, tmp_pat
         assert cfg_res.json()["store"]["tagline"] == "မြန်မာ့အကောင်းဆုံး VPN ဆိုင်"
 
 
-async def test_multi_panel_key_combinations(svc: Service, user: int):
+async def test_multi_panel_key_combinations(svc: Service, user: int, panel):
+    svc.trial_host = "sg2.lhpvpn.online"
     # Spin up a second MockPanel (Server 2 SG) and add it to the service
     panel2 = MockPanel(base_path="secPath2", port=45678, method="aes-256-gcm")
     t2 = FlakyTransport(httpx.ASGITransport(app=panel2.app))
@@ -235,6 +236,8 @@ async def test_multi_panel_key_combinations(svc: Service, user: int):
     trial_kv = await svc.claim_trial(user)
     assert panel2.client(trial_kv.email) is not None
     assert trial_kv.panel_id == 1
+    assert panel.client(trial_kv.email)["enable"] is False
+    assert [s["panel_id"] for s in await svc.get_key_links(user, trial_kv.id)] == [1]
 
     # Granting a Shared GB plan provisions on both panels!
     kv = await svc.grant_plan(ADMIN, user, "vpn_gb_1m", target_sub_id=0)

@@ -66,6 +66,7 @@ async def run() -> None:  # pragma: no cover - production entrypoint
         inbound_remark=settings.inbound_remark,
         server_host=settings.server_host,
         exabyte_plans=settings.is_exabyte_bot,
+        trial_host=settings.sg_server_host,
     )
     await svc.startup()
 

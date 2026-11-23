@@ -9,6 +9,8 @@ from contextvars import ContextVar
 from datetime import datetime
 from html import escape
 
+from urllib.parse import quote
+
 from aiogram.types import (
     CopyTextButton,
     InlineKeyboardButton,
@@ -75,10 +77,12 @@ def format_key_message(
         days_left=days_left(kv.expiry_ms, now),
         link=escape(kv.link),
     )
-    if extra_servers and len(extra_servers) > 1:
+    if kv.multi_server and extra_servers:
+        extra_servers = [s for s in extra_servers if s["link"] != kv.link]
+    if kv.multi_server and extra_servers:
         srv_lines = "\n".join(
             f"• <b>{escape(s['name'])}</b>:\n<code>{escape(s['link'])}</code>"
-            for s in extra_servers[1:]
+            for s in extra_servers
         )
         body += "\n" + t("extra_servers_section", servers=srv_lines)
     if intro:
@@ -319,8 +323,11 @@ def back_home_kb() -> InlineKeyboardMarkup:
     )
 
 
-def key_kb(kv: KeyView) -> InlineKeyboardMarkup:
+def key_kb(kv: KeyView, bot_domain: str = "") -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+    if bot_domain and kv.status == "active":
+        rows.append([InlineKeyboardButton(text="Add Key to Outline",
+                    url=f"https://{bot_domain}/static/outline.html#{quote(kv.link, safe='')}")])
     if len(kv.link) <= 256:
         rows.append([InlineKeyboardButton(text="📋 Key ကူးယူမည်",
                                           copy_text=CopyTextButton(text=kv.link))])

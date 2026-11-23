@@ -63,9 +63,9 @@ async def send_welcome(bot: Bot, chat_id: int, svc: Service, settings: Settings,
 
 
 async def send_outline_guide(bot: Bot, chat_id: int, settings: Settings, svc: Service) -> None:
-    image = GUIDE_ASSETS_DIR / "outline-quickstart.jpg"
+    image = GUIDE_ASSETS_DIR / "outline-import.jpg"
     if image.is_file():
-        cached = _GUIDE_FILE_IDS.get(bot.id) or await svc.db.get_setting(f"guide_quickstart_{bot.id}")
+        cached = _GUIDE_FILE_IDS.get(bot.id) or await svc.db.get_setting(f"guide_import_v2_{bot.id}")
         try:
             sent = await bot.send_photo(chat_id, cached or FSInputFile(image),
                 caption=t("guide_simple"), parse_mode="HTML", reply_markup=guide_menu_kb(settings))
@@ -75,7 +75,7 @@ async def send_outline_guide(bot: Bot, chat_id: int, settings: Settings, svc: Se
         if sent.photo:
             file_id = sent.photo[-1].file_id
             _GUIDE_FILE_IDS[bot.id] = file_id
-            await svc.db.set_setting(f"guide_quickstart_{bot.id}", file_id)
+            await svc.db.set_setting(f"guide_import_v2_{bot.id}", file_id)
     else:
         await bot.send_message(chat_id, t("guide_simple"), parse_mode="HTML",
             reply_markup=guide_menu_kb(settings))
@@ -101,7 +101,7 @@ async def send_key_card(
         kv, now, intro=intro, extra_servers=servers, sub_url=sub_url
     )
     await bot.send_message(
-        chat_id=chat_id, text=caption, parse_mode="HTML", reply_markup=key_kb(kv)
+        chat_id=chat_id, text=caption, parse_mode="HTML", reply_markup=key_kb(kv, settings.bot_domain if settings else "")
     )
 
 

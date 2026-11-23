@@ -1,0 +1,12 @@
+<!doctype html><html lang="my"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Open in Outline</title><link rel="stylesheet" href="/static/css/theme.css"><main class="app-shell"><section class="card"><h1>Outline ထဲသို့ Key ထည့်ရန်</h1><a class="btn btn-primary" id="open">Open in Outline</a><p>Outline ပွင့်လာလျှင် Add server ကို နှိပ်ပါ။</p><button class="btn btn-secondary" id="copy">Key ကူးယူမည်</button><p role="status" id="status"></p></section></main><script>
+const key = decodeURIComponent(location.hash.slice(1));
+const statusText = document.getElementById("status");
+if (key.startsWith("ss://")) {
+  document.getElementById("open").href = key;
+  document.getElementById("copy").onclick = async () => {
+    try { await navigator.clipboard.writeText(key); statusText.textContent = "Key ကူးယူပြီးပါပြီ"; }
+    catch { window.prompt("Copy key", key); }
+  };
+  location.assign(key);
+} else { statusText.textContent = "Telegram မှ Key ကို ပြန်ဖွင့်ပါ။"; }
+</script></html>

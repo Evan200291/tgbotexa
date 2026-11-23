@@ -215,13 +215,14 @@ class ReviewResult:
 # ---------------------------------------------------------------- service
 class Service:
     def __init__(self, db: Database, xui: XUIClient, *, inbound_remark: str, server_host: str,
-                 clock: Clock = utcnow, exabyte_plans: bool = False):
+                 clock: Clock = utcnow, exabyte_plans: bool = False, trial_host: str | None = None):
         self.db = db
         self.xui = xui
         self.inbound_remark = inbound_remark
         self.server_host = server_host
         self.now = clock
         self.exabyte_plans = exabyte_plans
+        self.trial_host = trial_host
         self._inbound: Inbound | None = None
         self._locks: defaultdict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
         # Extra 3X-UI panels keyed by panels.id -> XUIClient (allows test transport injection)
@@ -317,7 +318,7 @@ class Service:
                     total_bytes=quota,
                     expiry_ms=expiry_ms,
                     limit_ip=limit_ip,
-                    enable=enable,
+                    enable=enable and (comment != "trial" or not self.trial_host or r["server_host"] == self.trial_host),
                     tg_id=tg_id,
                     sub_id=sub_id,
                     comment=comment,
@@ -602,7 +603,7 @@ class Service:
                 "host": p["server_host"],
                 "link": build_ss_link(ib, pw, p["server_host"], f"Exabyte-{p['name']}-{email}"),
             })
-        if not ms and row["kind"] == "paid":
+        if not ms:
             filtered = [item for item in links if item["panel_id"] == pid]
             return filtered if filtered else [links[0]]
         return links
@@ -650,7 +651,8 @@ class Service:
               expiry_ms: int, limit_ip: int, enable: bool = True, comment: str = "") -> ClientSpec:
         return ClientSpec(
             email=email, password=password, method=client_method_for(self.inbound.method),
-            total_bytes=quota, expiry_ms=expiry_ms, limit_ip=limit_ip, enable=enable,
+            total_bytes=quota, expiry_ms=expiry_ms, limit_ip=limit_ip,
+            enable=enable and not (comment == "trial" and self.trial_host and self.server_host != self.trial_host),
             tg_id=tg_id, sub_id=sub_id, comment=comment,
         )
 
@@ -728,6 +730,11 @@ class Service:
         await self._ensure_inbound()
         async with self._lock(tg_id):
             now = self.now()
+            enabled_panels = [pid for pid, panel in self._panels_cache.items()
+                              if panel["enabled"] and (not self.trial_host or panel["server_host"] == self.trial_host)]
+            if not enabled_panels and self.trial_host and self.server_host != self.trial_host:
+                raise PanelUnavailable("Singapore trial panel is unavailable")
+            sg_pid = min(enabled_panels) if enabled_panels else 0
             if not is_admin:
                 info = await self.trial_info(tg_id)
                 if info["reason"] == "paid_active":
@@ -751,8 +758,6 @@ class Service:
                 self.inbound.method), new_sub_id()
             quota = P.TRIAL_QUOTA_GB * GB
             expiry = -P.TRIAL_DAYS * MS_PER_DAY
-            enabled_panels = [pid for pid, panel in self._panels_cache.items() if panel["enabled"]]
-            sg_pid = min(enabled_panels) if enabled_panels else 0
             await self.xui.add_client(self.inbound.id, self._spec(
                 tg_id, email, password, sub_id, quota, expiry, limit_ip=1, comment="trial"))
             try:
@@ -1331,7 +1336,7 @@ class Service:
                 assert row is not None
                 # Belt and braces: make sure an expired or quota-exhausted client is disabled across panels.
                 exhausted = bool(row["quota_bytes"] > 0 and row["used_bytes"] >= row["quota_bytes"])
-                if (0 < row["expiry_ms"] <= now_ms or exhausted) and tr is not None and tr.enable:
+                if (0 < row["expiry_ms"] <= now_ms or exhausted) and any(t.enable for t in remote):
                     await self.xui.update_client(ib.id, self._spec(
                         row["user_id"], email, row["password"], row["sub_id"],
                         row["quota_bytes"], row["expiry_ms"], 1, enable=False,
@@ -1731,7 +1736,7 @@ class Service:
                         total_bytes=int(sub["quota_bytes"]),
                         expiry_ms=int(sub["expiry_ms"]),
                         limit_ip=1,
-                        enable=bool(sub["enabled"]),
+                        enable=bool(sub["enabled"]) and (sub["kind"] != "trial" or not self.trial_host or server_host == self.trial_host),
                         tg_id=int(sub["user_id"]),
                         sub_id=sub["sub_id"],
                         comment=sub["plan_id"] or "",
