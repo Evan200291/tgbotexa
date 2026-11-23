@@ -29,6 +29,30 @@ S: dict[str, str] = {
     "welcome_body": (
         '<b>{store}</b> မှ ကြိုဆိုပါတယ်။\n\nOutline VPN ကို 5 GB / 7 ရက် အခမဲ့ စမ်းသုံးပါ။\nသက်တမ်းကို ပထမဆုံး ချိတ်ဆက်သုံးစွဲချိန်မှ စတင်တွက်ပါမည်။\n\nအောက်ပါ မီနူးမှ ရွေးချယ်ပါ။'
     ),
+    "exabyte_welcome_body": (
+        "⚡ <b>လိုင်းမနှေး၊ လိုင်းမကျရန် အာမခံပေးသည့် - Exabyte VPN Service 💯</b>\n\n"
+        '🎁 <b>"အခမဲ့ စမ်းသုံးမည်"</b> ခလုတ်ကို နှိပ်ပြီး အပတ်တိုင်း <b>5GB</b> လက်ဆောင် ယူလို့ရနေပြီနော် 🫡\n\n'
+        "✅ <b>မြန်နှုန်းမြင့် Premium Server</b> များကိုသာ သုံးပေးထားပါတယ်။\n"
+        "✅ <b>NOC Engineer</b> များက <b>24/7 Shift</b> များဖြင့် Standby ဝန်ဆောင်မှု ပေးသည့် Service ပါ။\n\n"
+        '🛒 ဝယ်ယူအသုံးပြုလိုပါက <b>"Plan ဝယ်မည်"</b> ခလုတ်ကို နှိပ်ပြီး စောင့်စရာမလိုဘဲ အလွယ်တကူ ဝယ်ယူနိုင်ပါပြီခင်ဗျာ။'
+    ),
+    "exabyte_btn_open_app": "📳 My Info",
+    "exabyte_btn_buy": "💶 Plan ဝယ်မည်",
+    "exabyte_btn_support": "💬 Admin နှင့်စကားပြောမည်",
+    "exabyte_plan_choose_server": (
+        "ဝယ်ယူထားသည့် <b>{plan_name}</b> package အတွက် <b>server region</b> ရွေးပေးပါ။"
+    ),
+    "exabyte_order_created": (
+        "• <b>Plan:</b> {plan_name} — {days} ရက်\n"
+        "• <b>အော်ဒါကုဒ်:</b> <code>{code}</code>\n"
+        "• <b>ပေးချေရမည့်ငွေ:</b> <b>{amount}</b>\n\n"
+        "💲 <b>ငွေလွှဲရန် အကောင့်များ</b>\n"
+        "• <b>KBZPay:</b> <code>{kbz_number}</code> ({kbz_name})\n"
+        "• <b>WavePay:</b> <code>{kbz_number}</code> ({kbz_name})\n\n"
+        "📌 <b>လုပ်ဆောင်ရန် အဆင့်များ</b>\n"
+        "1. Note (မှတ်ချက်) တွင် <code>{code}</code> ဟု <b>မဖြစ်မနေ</b> ထည့်ပေးပါ။\n"
+        "2. <b>ငွေလွှဲပြေစာ Screenshot</b> ကို ဤ Chat သို့ တိုက်ရိုက်ပို့ပေးပါ။"
+    ),
     "help_body": (
         "🛡️ <b>အသုံးပြုပုံ အကျဉ်းချုပ်</b>\n\n"
         "• <b>အခမဲ့ စမ်းသပ်</b> — အပတ်စဉ် 5 GB (7 ရက်) အခမဲ့ ရယူနိုင်ပါသည်။\n"

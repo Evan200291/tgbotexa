@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     def is_admin(self, user_id: int) -> bool:
         return user_id in self.admin_ids
 
+    @property
+    def is_exabyte_bot(self) -> bool:
+        """True for Bot 1 (Exabyte Digital Store); False for Bot 2 (Outline Plus MM)."""
+        return not bool(self.required_channel)
+
 
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 

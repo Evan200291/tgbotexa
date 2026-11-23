@@ -315,7 +315,7 @@ def create_webapp(
                     else (t("badge_save", amount=fmt_mmk(p.discount_mmk)) if p.discount_mmk else "")
                 ),
             }
-            for p in P.all_plans()
+            for p in P.all_plans(exabyte=settings.is_exabyte_bot)
         ]
         avail_servers = [
             {"id": p["id"], "name": p["name"], "host": p["server_host"]}

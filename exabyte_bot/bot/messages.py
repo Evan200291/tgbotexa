@@ -162,7 +162,27 @@ def _format_plan_line(p: P.Plan, *, is_reseller: bool = False) -> str:
     return t("plan_card_line", name=p.name, days=p.days, price_part=price_part, badge_part="")
 
 
-def format_plans_message(*, is_reseller: bool = False, balance_mmk: int = 0) -> str:
+def format_plans_message(
+    *, is_reseller: bool = False, balance_mmk: int = 0, exabyte_ui: bool = False
+) -> str:
+    if exabyte_ui:
+        unlim = P.plans_in("vpn", exabyte=True)
+        gb = P.plans_in("vpn_gb", exabyte=True)
+        lines: list[str] = []
+        if is_reseller:
+            lines.append(t("reseller_wallet_banner", balance=fmt_mmk(balance_mmk)).strip() + "\n")
+        lines.append("🩵 <b>ပြထားသော packages များထဲမှ ဝယ်ယူနိုင်သည်။</b>\n")
+        lines.append("🟢 <b>Unlimited traffic</b> <i>(Device 1 လုံးတည်းအတွက်သာ)</i>")
+        for p in unlim:
+            price = fmt_mmk(p.price_for(is_reseller=is_reseller))
+            lines.append(f"• <b>{p.months} month</b> - <b>{price}</b>")
+        lines.append("")
+        lines.append("🟩 <b>GB Limit Plan</b> <i>(Device Limit မရှိ။)</i>")
+        for p in gb:
+            price = fmt_mmk(p.price_for(is_reseller=is_reseller))
+            lines.append(f"• <b>{p.months} month</b> - <b>{p.quota_gb}GB</b> - <b>{price}</b>")
+        return branded("\n".join(lines))
+
     lines = [t("plans_header")]
     if is_reseller:
         lines.insert(0, t("reseller_wallet_banner", balance=fmt_mmk(balance_mmk)).strip() + "\n")
@@ -185,8 +205,9 @@ def format_order_message(
     balance_mmk: int = 0,
 ) -> str:
     plan = order.plan
+    tmpl_key = "exabyte_order_created" if settings.is_exabyte_bot else "order_created"
     body = t(
-        "order_created",
+        tmpl_key,
         plan_name=plan.name,
         days=plan.days,
         code=order.code,
@@ -230,7 +251,31 @@ def reply_menu_kb(settings: Settings) -> ReplyKeyboardMarkup:
 
 
 def main_menu_kb(settings: Settings) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = [
+    if settings.is_exabyte_bot:
+        rows: list[list[InlineKeyboardButton]] = [
+            [
+                InlineKeyboardButton(text=t("btn_trial"), callback_data="nav:trial"),
+                InlineKeyboardButton(text=t("exabyte_btn_buy"), callback_data="nav:plans"),
+            ],
+        ]
+        if settings.bot_domain:
+            rows.append([
+                InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide"),
+                InlineKeyboardButton(
+                    text=t("exabyte_btn_open_app"),
+                    web_app=WebAppInfo(url=f"https://{settings.bot_domain}"),
+                ),
+            ])
+        else:
+            rows.append([
+                InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide"),
+            ])
+        rows.append([
+            InlineKeyboardButton(text=t("exabyte_btn_support"), callback_data="nav:support"),
+        ])
+        return InlineKeyboardMarkup(inline_keyboard=rows)
+
+    rows = [
         [
             InlineKeyboardButton(text=t("btn_trial"), callback_data="nav:trial"),
             InlineKeyboardButton(text=t("btn_buy"), callback_data="nav:plans"),
@@ -253,6 +298,19 @@ def main_menu_kb(settings: Settings) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text=t("btn_support"), callback_data="nav:support"),
         ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _server_button_label(p: dict[str, object], *, exabyte_ui: bool = False) -> str:
+    if exabyte_ui:
+        host = str(p.get("server_host") or "").lower()
+        name = str(p.get("name") or "").lower()
+        pid = int(p.get("id") or 0)  # type: ignore[arg-type]
+        if "sgsep" in host or "singapore" in name or "sg" in name:
+            return "Singapore server 🇸🇬"
+        if "tpone" in host or "thailand" in name or "bangkok" in name or pid == 0:
+            return "🇹🇭 Thailand Server (Bangkok)"
+        return f"🌐 {p['name']}"
+    return f"🌐 {p['name']} ({p['server_host']})"
 
 
 def back_home_kb() -> InlineKeyboardMarkup:
@@ -280,15 +338,24 @@ def key_kb(kv: KeyView) -> InlineKeyboardMarkup:
 
 
 def key_server_switch_kb(
-    key_id: int, panels: list[dict[str, object]], current_panel_id: int
+    key_id: int,
+    panels: list[dict[str, object]],
+    current_panel_id: int,
+    *,
+    exabyte_ui: bool = False,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     for p in panels:
         pid = int(p["id"])  # type: ignore[arg-type]
-        mark = "✅ " if pid == current_panel_id else "🌐 "
+        if exabyte_ui:
+            lbl = _server_button_label(p, exabyte_ui=True)
+            txt = f"✅ {lbl}" if pid == current_panel_id else lbl
+        else:
+            mark = "✅ " if pid == current_panel_id else "🌐 "
+            txt = f"{mark}{p['name']} ({p['server_host']})"
         rows.append([
             InlineKeyboardButton(
-                text=f"{mark}{p['name']} ({p['server_host']})",
+                text=txt,
                 callback_data=f"key:srvset:{key_id}:{pid}",
             )
         ])
@@ -296,41 +363,47 @@ def key_server_switch_kb(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def plans_kb(*, is_reseller: bool = False) -> InlineKeyboardMarkup:
-    unlim = P.plans_in("vpn")
-    gb = P.plans_in("vpn_gb")
+def plans_kb(*, is_reseller: bool = False, exabyte_ui: bool = False) -> InlineKeyboardMarkup:
+    unlim = P.plans_in("vpn", exabyte=exabyte_ui)
+    gb = P.plans_in("vpn_gb", exabyte=exabyte_ui)
     rows: list[list[InlineKeyboardButton]] = []
     if len(unlim) == len(gb) and gb:
         for u_plan, g_plan in zip(unlim, gb, strict=False):
+            u_text = (
+                u_plan.name
+                if exabyte_ui
+                else t(
+                    "btn_select_plan",
+                    name=u_plan.name,
+                    price=fmt_mmk(u_plan.price_for(is_reseller=is_reseller)),
+                )
+            )
+            g_text = (
+                g_plan.name
+                if exabyte_ui
+                else t(
+                    "btn_select_plan",
+                    name=g_plan.name,
+                    price=fmt_mmk(g_plan.price_for(is_reseller=is_reseller)),
+                )
+            )
             rows.append([
-                InlineKeyboardButton(
-                    text=t(
-                        "btn_select_plan",
-                        name=u_plan.name,
-                        price=fmt_mmk(u_plan.price_for(is_reseller=is_reseller)),
-                    ),
-                    callback_data=f"plan:{u_plan.id}",
-                ),
-                InlineKeyboardButton(
-                    text=t(
-                        "btn_select_plan",
-                        name=g_plan.name,
-                        price=fmt_mmk(g_plan.price_for(is_reseller=is_reseller)),
-                    ),
-                    callback_data=f"plan:{g_plan.id}",
-                ),
+                InlineKeyboardButton(text=u_text, callback_data=f"plan:{u_plan.id}"),
+                InlineKeyboardButton(text=g_text, callback_data=f"plan:{g_plan.id}"),
             ])
     else:
-        for p in P.all_plans():
-            rows.append([
-                InlineKeyboardButton(
-                    text=t(
-                        "btn_select_plan",
-                        name=p.name,
-                        price=fmt_mmk(p.price_for(is_reseller=is_reseller)),
-                    ),
-                    callback_data=f"plan:{p.id}",
+        for p in P.all_plans(exabyte=exabyte_ui):
+            p_text = (
+                p.name
+                if exabyte_ui
+                else t(
+                    "btn_select_plan",
+                    name=p.name,
+                    price=fmt_mmk(p.price_for(is_reseller=is_reseller)),
                 )
+            )
+            rows.append([
+                InlineKeyboardButton(text=p_text, callback_data=f"plan:{p.id}")
             ])
     rows.append([InlineKeyboardButton(text=t("back"), callback_data="nav:home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -356,12 +429,16 @@ def plan_mode_kb(plan_id: str, keys: list[KeyView]) -> InlineKeyboardMarkup:
 
 
 def plan_server_kb(
-    plan_id: str, target_sub_id: int, panels: list[dict[str, object]]
+    plan_id: str,
+    target_sub_id: int,
+    panels: list[dict[str, object]],
+    *,
+    exabyte_ui: bool = False,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
         [
             InlineKeyboardButton(
-                text=f"🌐 {p['name']} ({p['server_host']})",
+                text=_server_button_label(p, exabyte_ui=exabyte_ui),
                 callback_data=f"psrv:{plan_id}:{target_sub_id}:{int(p['id'])}",  # type: ignore[arg-type]
             )
         ]
@@ -402,14 +479,21 @@ def order_created_kb(
 
 def guide_menu_kb(settings: Settings | None = None) -> InlineKeyboardMarkup:
     from ..downloads import APP_STORE_URL, MAC_URL, PLAY_STORE_URL, WINDOWS_URL
+    bottom_row = (
+        [InlineKeyboardButton(text=t("back"), callback_data="nav:home")]
+        if (settings and settings.is_exabyte_bot)
+        else [
+            InlineKeyboardButton(text=t("btn_my_key"), callback_data="nav:key"),
+            InlineKeyboardButton(text=t("back"), callback_data="nav:home"),
+        ]
+    )
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬇️ Outline APK ရယူရန်", callback_data="download:apk")],
         [InlineKeyboardButton(text="Google Play", url=PLAY_STORE_URL),
          InlineKeyboardButton(text="App Store", url=APP_STORE_URL)],
         [InlineKeyboardButton(text="Windows ဒေါင်းလုဒ်", url=WINDOWS_URL),
          InlineKeyboardButton(text="Mac App Store", url=MAC_URL)],
-        [InlineKeyboardButton(text=t("btn_my_key"), callback_data="nav:key"),
-         InlineKeyboardButton(text=t("back"), callback_data="nav:home")],
+        bottom_row,
     ])
 
 

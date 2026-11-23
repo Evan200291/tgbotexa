@@ -94,9 +94,9 @@ async def test_second_bot_requires_join_for_every_user(svc, tmp_path, uid):
 async def test_first_bot_keeps_persistent_keyboard_without_join(svc, tmp_path):
     _, session, _, send, _, _ = _make_harness(svc, tmp_path)
     await send(USER, "/start")
-    keyboard = session.sent_to(USER)[-1].reply_markup
-    assert isinstance(keyboard, ReplyKeyboardMarkup)
-    assert keyboard.is_persistent and not keyboard.one_time_keyboard
+    sent = session.sent_to(USER)
+    assert len(sent) == 1
+    assert sent[-1].reply_markup.inline_keyboard
     await send(USER, S["btn_trial"])
     assert await svc.get_key(USER)
     assert not any(isinstance(call, GetChatMember) for call in session.calls)

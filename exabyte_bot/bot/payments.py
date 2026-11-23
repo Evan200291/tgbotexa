@@ -98,16 +98,25 @@ def build_payments_router() -> Router:
         )
 
     @r.callback_query(F.data == "nav:plans")
-    async def cb_plans(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
+    async def cb_plans(
+        cb: CallbackQuery, svc: Service, settings: Settings, bot: Bot
+    ) -> None:
         await cb.answer()
         uid = cb.from_user.id
         chat_id = cb.message.chat.id if cb.message else uid
         res = await svc.get_reseller_info(uid)
         await bot.send_message(
             chat_id,
-            format_plans_message(is_reseller=res["is_reseller"], balance_mmk=res["balance_mmk"]),
+            format_plans_message(
+                is_reseller=res["is_reseller"],
+                balance_mmk=res["balance_mmk"],
+                exabyte_ui=settings.is_exabyte_bot,
+            ),
             parse_mode="HTML",
-            reply_markup=plans_kb(is_reseller=res["is_reseller"]),
+            reply_markup=plans_kb(
+                is_reseller=res["is_reseller"],
+                exabyte_ui=settings.is_exabyte_bot,
+            ),
         )
 
     @r.callback_query(F.data.startswith("plan:"))
@@ -116,7 +125,7 @@ def build_payments_router() -> Router:
     ) -> None:
         await cb.answer()
         plan_id = (cb.data or "").split(":", 1)[1]
-        plan = get_plan(plan_id)
+        plan = get_plan(plan_id, exabyte=settings.is_exabyte_bot)
         if plan is None:
             return
         uid = cb.from_user.id
@@ -140,12 +149,22 @@ def build_payments_router() -> Router:
             )
             return
         panels = [p for p in await svc.list_panels() if p["enabled"]]
-        if not plan.multi_server and len(panels) > 1:
+        need_server_pick = len(panels) > 1 and (
+            settings.is_exabyte_bot or not plan.multi_server
+        )
+        if need_server_pick:
+            srv_prompt_key = (
+                "exabyte_plan_choose_server"
+                if settings.is_exabyte_bot
+                else "plan_choose_server"
+            )
             await bot.send_message(
                 chat_id,
-                branded(t("plan_choose_server", plan_name=plan.name)),
+                branded(t(srv_prompt_key, plan_name=plan.name)),
                 parse_mode="HTML",
-                reply_markup=plan_server_kb(plan.id, 0, panels),
+                reply_markup=plan_server_kb(
+                    plan.id, 0, panels, exabyte_ui=settings.is_exabyte_bot
+                ),
             )
             return
         await _finalize_order_creation(
@@ -165,18 +184,28 @@ def build_payments_router() -> Router:
             target_sub_id = int(parts[2])
         except ValueError:
             return
-        plan = get_plan(plan_id)
+        plan = get_plan(plan_id, exabyte=settings.is_exabyte_bot)
         if plan is None:
             return
         uid = cb.from_user.id
         chat_id = cb.message.chat.id if cb.message else uid
         panels = [p for p in await svc.list_panels() if p["enabled"]]
-        if target_sub_id == 0 and not plan.multi_server and len(panels) > 1:
+        need_server_pick = target_sub_id == 0 and len(panels) > 1 and (
+            settings.is_exabyte_bot or not plan.multi_server
+        )
+        if need_server_pick:
+            srv_prompt_key = (
+                "exabyte_plan_choose_server"
+                if settings.is_exabyte_bot
+                else "plan_choose_server"
+            )
             await bot.send_message(
                 chat_id,
-                branded(t("plan_choose_server", plan_name=plan.name)),
+                branded(t(srv_prompt_key, plan_name=plan.name)),
                 parse_mode="HTML",
-                reply_markup=plan_server_kb(plan.id, target_sub_id, panels),
+                reply_markup=plan_server_kb(
+                    plan.id, target_sub_id, panels, exabyte_ui=settings.is_exabyte_bot
+                ),
             )
             return
         await _finalize_order_creation(
@@ -197,7 +226,7 @@ def build_payments_router() -> Router:
             panel_id = int(parts[3])
         except ValueError:
             return
-        if get_plan(plan_id) is None:
+        if get_plan(plan_id, exabyte=settings.is_exabyte_bot) is None:
             return
         uid = cb.from_user.id
         chat_id = cb.message.chat.id if cb.message else uid

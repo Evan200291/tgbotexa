@@ -174,11 +174,17 @@ async def test_start_help_myid_and_menus(svc: Service, tmp_path):
     _, session, _, send_text, _, tap = _make_harness(svc, tmp_path)
 
     await send_text(USER, "/start")
-    welcome = session.sent_to(USER)[-2]
-    assert isinstance(welcome, SendAnimation)
-    assert HEADER in welcome.caption
-    assert "5 GB / 7" in welcome.caption
-    assert welcome.reply_markup.inline_keyboard
+    sent = session.sent_to(USER)
+    assert len(sent) == 1
+    welcome = sent[-1]
+    assert isinstance(welcome, SendMessage)
+    assert HEADER in welcome.text
+    assert "Exabyte VPN Service" in welcome.text
+    assert "5GB" in welcome.text
+    btn_texts = [b.text for row in welcome.reply_markup.inline_keyboard for b in row]
+    assert "💶 Plan ဝယ်မည်" in btn_texts
+    assert "💬 Admin နှင့်စကားပြောမည်" in btn_texts
+    assert all("ကျွန်ုပ်၏ Key" not in txt for txt in btn_texts)
 
     await send_text(USER, "/help")
     assert "အသုံးပြုပုံ" in session.last_text(USER)
@@ -235,12 +241,17 @@ async def test_full_payment_and_admin_approval_flow(svc: Service, tmp_path):
     _, session, _, send_text, send_photo, tap = _make_harness(svc, tmp_path)
 
     await tap(USER, "nav:plans")
-    plans_txt = session.last_text(USER)
-    assert "20,000 ကျပ်" in plans_txt and "<s>" not in plans_txt
+    plans_msg = session.sent_to(USER)[-1]
+    plans_txt = plans_msg.text or ""
+    assert "5,000 ကျပ်" in plans_txt and "14,000 ကျပ်" in plans_txt and "28,000 ကျပ်" in plans_txt
+    assert "650GB" in plans_txt and "<s>" not in plans_txt
+    plan_btns = [b.text for row in plans_msg.reply_markup.inline_keyboard for b in row]
+    assert all("💳" not in b and "ကျပ်" not in b for b in plan_btns)
 
     await tap(USER, "plan:vpn_3m")
     ord_txt = session.last_text(USER)
-    assert "KBZ Pay" in ord_txt and "09000000000" in ord_txt
+    assert "KBZPay:" in ord_txt and "<code>09000000000</code>" in ord_txt
+    assert "WavePay:" in ord_txt
     order = await svc.open_order(USER)
     assert order is not None
 

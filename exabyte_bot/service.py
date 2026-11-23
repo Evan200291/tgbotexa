@@ -180,10 +180,11 @@ class Order:
     created_at: int
     target_sub_id: int | None = None
     panel_id: int = 0
+    _exabyte: bool = False
 
     @property
     def plan(self) -> Plan:
-        plan = get_plan(self.plan_id)
+        plan = get_plan(self.plan_id, exabyte=self._exabyte)
         assert plan is not None
         return plan
 
@@ -192,14 +193,15 @@ class Order:
         return fmt_mmk(self.amount)
 
     @classmethod
-    def from_row(cls, r: aiosqlite.Row) -> Order:
+    def from_row(cls, r: aiosqlite.Row, *, exabyte: bool = False) -> Order:
         keys = set(r.keys())
         return cls(
             **{
                 k: r[k]
                 for k in cls.__dataclass_fields__
                 if k in keys
-            }
+            },
+            _exabyte=exabyte,
         )
 
 
@@ -213,12 +215,13 @@ class ReviewResult:
 # ---------------------------------------------------------------- service
 class Service:
     def __init__(self, db: Database, xui: XUIClient, *, inbound_remark: str, server_host: str,
-                 clock: Clock = utcnow):
+                 clock: Clock = utcnow, exabyte_plans: bool = False):
         self.db = db
         self.xui = xui
         self.inbound_remark = inbound_remark
         self.server_host = server_host
         self.now = clock
+        self.exabyte_plans = exabyte_plans
         self._inbound: Inbound | None = None
         self._locks: defaultdict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
         # Extra 3X-UI panels keyed by panels.id -> XUIClient (allows test transport injection)
@@ -893,7 +896,7 @@ class Service:
         target_sub_id: int | None = None,
         panel_id: int = 0,
     ) -> KeyView:
-        plan = get_plan(plan_id)
+        plan = get_plan(plan_id, exabyte=self.exabyte_plans)
         if plan is None:
             raise UnknownPlan()
         await self.ensure_user(tg_id)
@@ -913,7 +916,7 @@ class Service:
     # ----- orders
     async def _order(self, code: str) -> Order | None:
         row = await self.db.fetchone("SELECT * FROM orders WHERE code=?", (code,))
-        return Order.from_row(row) if row else None
+        return Order.from_row(row, exabyte=self.exabyte_plans) if row else None
 
     async def get_order(self, code: str) -> Order | None:
         return await self._order(code)
@@ -921,7 +924,7 @@ class Service:
     async def open_order(self, tg_id: int) -> Order | None:
         row = await self.db.fetchone(
             "SELECT * FROM orders WHERE user_id=? AND state='pending_payment'", (tg_id,))
-        return Order.from_row(row) if row else None
+        return Order.from_row(row, exabyte=self.exabyte_plans) if row else None
 
     async def create_order(
         self,
@@ -931,7 +934,7 @@ class Service:
         target_sub_id: int | None = None,
         panel_id: int = 0,
     ) -> Order:
-        plan = get_plan(plan_id)
+        plan = get_plan(plan_id, exabyte=self.exabyte_plans)
         if plan is None:
             raise UnknownPlan()
         async with self._lock(tg_id):

@@ -30,6 +30,7 @@ class Plan:
     months: int
     days: int
     discount_mmk: int = 0
+    override_price_mmk: int | None = None
     quota_gb: int | None = None  # None = unlimited
     devices: int = PAID_DEVICES
     badge: str | None = None  # strings.py key, or None
@@ -39,10 +40,14 @@ class Plan:
 
     @property
     def original_price_mmk(self) -> int:
+        if self.override_price_mmk is not None:
+            return self.override_price_mmk
         return self.months * MONTHLY_PRICE_MMK
 
     @property
     def price_mmk(self) -> int:
+        if self.override_price_mmk is not None:
+            return self.override_price_mmk
         return self.original_price_mmk - self.discount_mmk
 
     @property
@@ -89,17 +94,53 @@ PLANS: tuple[Plan, ...] = (
     ),
 )
 
+EXABYTE_PLANS: tuple[Plan, ...] = (
+    # --- Unlimited traffic (Device 1 လုံးတည်းအတွက်သာ) ---
+    Plan(
+        id="vpn_1m", category="vpn", name="1 လ (Unlimited)", months=1,
+        days=1 * DAYS_PER_MONTH, override_price_mmk=5_000, devices=1,
+    ),
+    Plan(
+        id="vpn_3m", category="vpn", name="3 လ (Unlimited)", months=3,
+        days=3 * DAYS_PER_MONTH, override_price_mmk=14_000, devices=1,
+        badge="badge_save",
+    ),
+    Plan(
+        id="vpn_6m", category="vpn", name="6 လ (Unlimited)", months=6,
+        days=6 * DAYS_PER_MONTH, override_price_mmk=28_000, devices=1,
+        badge="badge_best", best_value=True,
+    ),
+    # --- GB Limit Plan (Device Limit မရှိ။) ---
+    Plan(
+        id="vpn_gb_1m", category="vpn_gb", name="1 လ (100 GB)", months=1,
+        days=1 * DAYS_PER_MONTH, override_price_mmk=5_000, quota_gb=100,
+        devices=0, multi_server=True,
+    ),
+    Plan(
+        id="vpn_gb_3m", category="vpn_gb", name="3 လ (300 GB)", months=3,
+        days=3 * DAYS_PER_MONTH, override_price_mmk=14_000, quota_gb=300,
+        devices=0, badge="badge_save", multi_server=True,
+    ),
+    Plan(
+        id="vpn_gb_6m", category="vpn_gb", name="6 လ (650 GB)", months=6,
+        days=6 * DAYS_PER_MONTH, override_price_mmk=28_000, quota_gb=650,
+        devices=0, badge="badge_best", best_value=True, multi_server=True,
+    ),
+)
+
 _BY_ID = {p.id: p for p in PLANS}
+_EXABYTE_BY_ID = {p.id: p for p in EXABYTE_PLANS}
 
 
-def get_plan(plan_id: str) -> Plan | None:
-    return _BY_ID.get(plan_id)
+def get_plan(plan_id: str, *, exabyte: bool = False) -> Plan | None:
+    return (_EXABYTE_BY_ID if exabyte else _BY_ID).get(plan_id)
 
 
-def plans_in(category: str) -> list[Plan]:
-    return [p for p in PLANS if p.category == category]
+def plans_in(category: str, *, exabyte: bool = False) -> list[Plan]:
+    src = EXABYTE_PLANS if exabyte else PLANS
+    return [p for p in src if p.category == category]
 
 
-def all_plans() -> list[Plan]:
-    return list(PLANS)
+def all_plans(*, exabyte: bool = False) -> list[Plan]:
+    return list(EXABYTE_PLANS if exabyte else PLANS)
 

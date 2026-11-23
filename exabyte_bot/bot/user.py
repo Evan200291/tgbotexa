@@ -41,10 +41,21 @@ _GUIDE_FILE_IDS: dict[int, str] = {}
 async def send_welcome(bot: Bot, chat_id: int, svc: Service, settings: Settings,
                        user_id: int) -> None:
     res = await svc.get_reseller_info(user_id)
+    if settings.is_exabyte_bot:
+        body = t("exabyte_welcome_body")
+        if res["is_reseller"]:
+            body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
+        await bot.send_message(
+            chat_id,
+            branded(body),
+            parse_mode="HTML",
+            reply_markup=main_menu_kb(settings),
+        )
+        return
     body = t("welcome_body", store=escape(settings.store_name))
     if res["is_reseller"]:
         body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
-    animation = WELCOME_ASSETS_DIR / ("outlineplus.gif" if settings.required_channel else "exabyte.gif")
+    animation = WELCOME_ASSETS_DIR / "outlineplus.gif"
     await bot.send_animation(chat_id, FSInputFile(animation), caption=branded(body),
                              parse_mode="HTML", reply_markup=main_menu_kb(settings))
     await bot.send_message(chat_id, "⬇️ အောက်ပါ မီနူးကိုလည်း အသုံးပြုနိုင်ပါသည်။",
@@ -132,14 +143,21 @@ def build_user_router() -> Router:
         intro = t("trial_ok", gb=P.TRIAL_QUOTA_GB, days=P.TRIAL_DAYS)
         await send_key_card(bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc, settings=settings)
 
-    @r.message(F.text == t("btn_buy"))
-    async def msg_plans(msg: Message, svc: Service) -> None:
+    @r.message(F.text.in_({t("btn_buy"), t("exabyte_btn_buy")}))
+    async def msg_plans(msg: Message, svc: Service, settings: Settings) -> None:
         uid = msg.from_user.id if msg.from_user else msg.chat.id
         res = await svc.get_reseller_info(uid)
         await msg.answer(
-            format_plans_message(is_reseller=res["is_reseller"], balance_mmk=res["balance_mmk"]),
+            format_plans_message(
+                is_reseller=res["is_reseller"],
+                balance_mmk=res["balance_mmk"],
+                exabyte_ui=settings.is_exabyte_bot,
+            ),
             parse_mode="HTML",
-            reply_markup=plans_kb(is_reseller=res["is_reseller"]),
+            reply_markup=plans_kb(
+                is_reseller=res["is_reseller"],
+                exabyte_ui=settings.is_exabyte_bot,
+            ),
         )
 
     @r.message(Command("key"))
@@ -160,7 +178,7 @@ def build_user_router() -> Router:
     async def msg_guide(msg: Message, bot: Bot, settings: Settings, svc: Service) -> None:
         await send_outline_guide(bot, msg.chat.id, settings, svc)
 
-    @r.message(F.text == t("btn_support"))
+    @r.message(F.text.in_({t("btn_support"), t("exabyte_btn_support")}))
     async def msg_support(msg: Message, settings: Settings) -> None:
         await msg.answer(
             branded(t("support_body")), parse_mode="HTML", reply_markup=support_kb(settings)
@@ -187,7 +205,11 @@ def build_user_router() -> Router:
         await cb.answer()
         if cb.message:
             res = await svc.get_reseller_info(cb.from_user.id)
-            body = t("welcome_body", store=escape(settings.store_name))
+            body = (
+                t("exabyte_welcome_body")
+                if settings.is_exabyte_bot
+                else t("welcome_body", store=escape(settings.store_name))
+            )
             if res["is_reseller"]:
                 body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
             await cb.message.answer(
@@ -229,7 +251,9 @@ def build_user_router() -> Router:
             await send_key_card(bot, chat_id, kv, svc.now(), svc=svc, settings=settings)
 
     @r.callback_query(F.data.startswith("key:srvmenu:"))
-    async def cb_key_server_menu(cb: CallbackQuery, svc: Service, bot: Bot) -> None:
+    async def cb_key_server_menu(
+        cb: CallbackQuery, svc: Service, settings: Settings, bot: Bot
+    ) -> None:
         await cb.answer()
         uid = cb.from_user.id
         chat_id = cb.message.chat.id if cb.message else uid
@@ -259,7 +283,9 @@ def build_user_router() -> Router:
                 )
             ),
             parse_mode="HTML",
-            reply_markup=key_server_switch_kb(kv.id, panels, kv.panel_id),
+            reply_markup=key_server_switch_kb(
+                kv.id, panels, kv.panel_id, exabyte_ui=settings.is_exabyte_bot
+            ),
         )
 
     @r.callback_query(F.data.startswith("key:srvset:"))
