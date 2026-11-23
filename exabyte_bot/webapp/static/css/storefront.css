@@ -9,7 +9,7 @@
   --accent: #64dcff;
   --border: #29445e;
   --ink: #032235;
-  --glass: rgba(10,32,55,.88);
+  --glass: rgba(10,32,55,.72);
   --gutter: clamp(10px,3vw,20px);
 }
 :root[data-theme="light"] {
@@ -59,4 +59,48 @@ label { display:block }
 .stat-val,.mono-box { overflow-wrap:anywhere }.stat-tile,.mono-box { padding:8px;background:var(--field) }
 .toast { position:fixed; z-index:5; bottom:76px; left:10px; right:10px; padding:10px; background:var(--field);border:1px solid var(--accent) }
 .lotus-divider { display:none }.utilities { justify-content:flex-end }
+@media(prefers-reduced-transparency:reduce){.bottom-dock{background:var(--surface);backdrop-filter:none}}
+
+/* A low-lit canvas stays visible through the key sheets and navigation. */
+body {
+  --tint: color-mix(in srgb, var(--accent) 12%, transparent);
+  --line: color-mix(in srgb, var(--accent) 24%, transparent);
+  background: radial-gradient(ellipse at 95% 0%, var(--tint), transparent 52%),
+              linear-gradient(165deg,var(--bg),var(--surface) 52%,var(--bg)) fixed;
+}
+.home-heading { padding-block:14px; border-bottom:1px solid var(--line) }
+.home-heading h1 { font-size:1.12rem; font-weight:650 }
+.home-heading .btn { color:var(--accent); background:var(--tint); border-color:var(--line) }
+#key-servers-list { gap:1px; background:var(--line) }
+.card,.package {
+  background:linear-gradient(110deg,color-mix(in srgb,var(--surface) 96%,var(--accent)),var(--bg));
+  border-block:0; box-shadow:inset 0 1px 0 var(--line);
+}
+.key-card { position:relative; padding-block:14px 16px }
+.key-meta { display:flex; justify-content:space-between; align-items:baseline; gap:8px; color:var(--accent); margin-bottom:5px }
+.key-meta>span:first-child { font:600 .7rem/1.5 ui-monospace,monospace; letter-spacing:.12em }
+.validity { font-size:.78rem; color:var(--text-muted); text-align:right }
+.key-card h2 { font-size:clamp(1.18rem,4vw,1.45rem); font-weight:650; line-height:1.35 }
+.key-data { color:var(--text-muted); font-size:.84rem; margin:3px 0 }
+.key-card[data-state="inactive"] { background:var(--bg) }
+.key-card[data-state="inactive"] .key-meta { color:var(--text-muted) }
+.key-card progress { width:100%; height:4px; display:block; margin-top:8px; accent-color:var(--accent) }
+.server-actions { margin:12px 0 0; gap:8px }
+.server-actions + h2 { margin-top:14px }
+.btn-primary,.btn-jade {
+  color:var(--text);
+  background:linear-gradient(115deg,color-mix(in srgb,var(--surface) 65%,var(--accent)),var(--surface));
+  border-color:var(--line); box-shadow:inset 0 1px 0 color-mix(in srgb,var(--accent) 55%,transparent);
+}
+.server-actions .btn-primary { justify-content:space-between; text-align:left }
+.server-actions .btn-primary::after { content:"↗"; color:var(--accent); margin-inline-start:5px }
+.btn-secondary,.input,.textarea,.theme-btn { background:color-mix(in srgb,var(--surface) 88%,transparent);border-color:var(--border) }
+.package-grid { gap:6px }
+.package { padding:12px; border-inline-start:0 }
+.package strong { font-size:.88rem }.package span { font-size:1.04rem }
+.bottom-dock { background:linear-gradient(130deg,var(--tint),transparent),var(--glass);
+  box-shadow:0 -6px 22px #0002,inset 0 1px 0 var(--line);backdrop-filter:blur(24px) saturate(150%) }
+.dock-tab { display:grid; justify-items:center; align-content:center; gap:2px; font-size:.76rem }
+.dock-icon { font:1.05rem/1.1 system-ui }
+.dock-tab.active { background:linear-gradient(var(--tint),transparent) }
 @media(prefers-reduced-transparency:reduce){.bottom-dock{background:var(--surface);backdrop-filter:none}}

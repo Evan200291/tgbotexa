@@ -243,26 +243,38 @@
     keysList.forEach((k, idx) => {
       const kCard = document.createElement("div");
       kCard.className = "card key-card";
-      const heading = document.createElement("h2");
-      heading.textContent = "Key " + (idx + 1) + " · " + (k.kind === "trial" ? "Trial" : "Plan");
-      const detail = document.createElement("p");
-      detail.className = "muted";
-      detail.textContent = (k.unlimited ? "Unlimited" : fmtBytes(k.used_bytes) + " / " + fmtBytes(k.quota_bytes)) +
-        " · " + (k.pending_activation ? "ပထမဆုံး ချိတ်ဆက်ချိန်မှ " : "") + k.days_left + " ရက်" +
-        (k.status === "active" ? "" : " · " + k.status);
-      kCard.append(heading, detail);
-
-      const servers =
-        k.servers && k.servers.length
-          ? k.servers
-          : [{ panel_id: k.panel_id || 0, name: "Server 1", link: k.link }];
+      const servers = k.servers?.length ? k.servers : [{ name: "Server 1", link: k.link }];
+      const available = k.status === "active";
+      kCard.dataset.state = available ? "available" : "inactive";
+      const meta = document.createElement("div");
+      meta.className = "key-meta";
+      const identity = document.createElement("span");
+      identity.textContent = "KEY " + String(idx + 1).padStart(2, "0") + "  /  " +
+        (k.kind === "trial" ? "TRIAL" : "PLAN");
+      const validity = document.createElement("span");
+      validity.className = "validity";
+      validity.textContent = !available ? (k.status === "expired" ? "သက်တမ်းကုန်" : "ပိတ်ထားသည်") :
+        (k.pending_activation ? "စသုံးချိန်မှ " : "") + k.days_left + " ရက်";
+      meta.append(identity, validity);
+      kCard.append(meta);
       servers.forEach((srv) => {
+        const heading = document.createElement("h2");
+        heading.textContent = srv.host === "tpone.lhpvpn.online" ? "Thailand · Bangkok" :
+          srv.host === "sgsep.lhpvpn.online" ? "Singapore" : srv.name;
+        const detail = document.createElement("p");
+        detail.className = "key-data";
+        detail.textContent = k.unlimited ? "Unlimited data" :
+          fmtBytes(k.used_bytes) + " / " + fmtBytes(k.quota_bytes);
+        kCard.append(heading, detail);
+        if (!k.unlimited && k.quota_bytes > 0) {
+          const meter = document.createElement("progress");
+          meter.max = k.quota_bytes;
+          meter.value = k.used_bytes;
+          meter.setAttribute("aria-label", "Data usage");
+          kCard.append(meter);
+        }
+        if (!available) return;
         const wrap = document.createElement("div");
-        wrap.style.marginBottom = "8px";
-        const title = document.createElement("div");
-        title.style.fontWeight = "600";
-        title.style.fontSize = "0.9rem";
-        title.textContent = srv.name;
         const open = document.createElement("a");
         open.className = "btn btn-primary";
         open.textContent = "Add Key to Outline";
@@ -275,7 +287,7 @@
           }
         });
         wrap.className = "server-actions";
-        wrap.append(title, open);
+        wrap.append(open);
         const copy = document.createElement("button");
         copy.type = "button"; copy.className = "btn btn-secondary btn-sm";
         copy.textContent = "Key ကူးယူမည်";
