@@ -227,7 +227,37 @@ def format_order_message(
 # ---------------------------------------------------------------- keyboards
 def reply_menu_kb(settings: Settings) -> ReplyKeyboardMarkup:
     """Persistent bottom reply keyboard (below the typing text bar), 2 buttons per row."""
-    rows: list[list[KeyboardButton]] = [
+    if settings.is_exabyte_bot:
+        rows: list[list[KeyboardButton]] = [
+            [
+                KeyboardButton(text=t("btn_trial")),
+                KeyboardButton(text=t("exabyte_btn_buy")),
+            ],
+        ]
+        if settings.bot_domain:
+            rows.append([
+                KeyboardButton(text=t("btn_guide")),
+                KeyboardButton(
+                    text=t("exabyte_btn_open_app"),
+                    web_app=WebAppInfo(url=f"https://{settings.bot_domain}"),
+                ),
+            ])
+        else:
+            rows.append([
+                KeyboardButton(text=t("btn_guide")),
+            ])
+        rows.append([
+            KeyboardButton(text=t("exabyte_btn_support")),
+        ])
+        return ReplyKeyboardMarkup(
+            keyboard=rows,
+            resize_keyboard=True,
+            is_persistent=True,
+            one_time_keyboard=False,
+            input_field_placeholder="အောက်ပါ မီနူးမှ ရွေးပါ",
+        )
+
+    rows = [
         [
             KeyboardButton(text=t("btn_trial")),
             KeyboardButton(text=t("btn_buy")),

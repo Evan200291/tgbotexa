@@ -17,7 +17,7 @@ from ..config import Settings
 from ..service import KeyView, Service, ServiceError
 from ..strings import t
 from ..util import fmt_bytes
-from ..xui import PanelUnavailable
+from ..xui import PanelUnavailable, XUIError
 from .messages import (
     back_home_kb,
     branded,
@@ -49,7 +49,7 @@ async def send_welcome(bot: Bot, chat_id: int, svc: Service, settings: Settings,
             chat_id,
             branded(body),
             parse_mode="HTML",
-            reply_markup=main_menu_kb(settings),
+            reply_markup=reply_menu_kb(settings),
         )
         return
     body = t("welcome_body", store=escape(settings.store_name))
@@ -101,7 +101,10 @@ async def send_key_card(
         kv, now, intro=intro, extra_servers=servers, sub_url=sub_url
     )
     await bot.send_message(
-        chat_id=chat_id, text=caption, parse_mode="HTML", reply_markup=key_kb(kv, settings.bot_domain if settings else "")
+        chat_id=chat_id,
+        text=caption,
+        parse_mode="HTML",
+        reply_markup=key_kb(kv, settings.bot_domain if settings else ""),
     )
 
 
@@ -126,7 +129,10 @@ def build_user_router() -> Router:
 
     @r.message(Command("trial"))
     @r.message(F.text == t("btn_trial"))
-    async def msg_trial(msg: Message, svc: Service, settings: Settings, bot: Bot) -> None:
+    async def msg_trial(
+        msg: Message, svc: Service, settings: Settings, state: FSMContext, bot: Bot
+    ) -> None:
+        await state.clear()
         uid = msg.from_user.id if msg.from_user else msg.chat.id
         try:
             kv = await svc.claim_trial(uid, is_admin=settings.is_admin(uid))
@@ -135,7 +141,7 @@ def build_user_router() -> Router:
                 branded(e.message()), parse_mode="HTML", reply_markup=back_home_kb()
             )
             return
-        except PanelUnavailable:
+        except (PanelUnavailable, XUIError):
             await msg.answer(
                 branded(t("panel_down")), parse_mode="HTML", reply_markup=back_home_kb()
             )
@@ -144,7 +150,10 @@ def build_user_router() -> Router:
         await send_key_card(bot, msg.chat.id, kv, svc.now(), intro=intro, svc=svc, settings=settings)
 
     @r.message(F.text.in_({t("btn_buy"), t("exabyte_btn_buy"), "🛒 Plan ဝယ်မည်"}))
-    async def msg_plans(msg: Message, svc: Service, settings: Settings) -> None:
+    async def msg_plans(
+        msg: Message, svc: Service, settings: Settings, state: FSMContext
+    ) -> None:
+        await state.clear()
         uid = msg.from_user.id if msg.from_user else msg.chat.id
         res = await svc.get_reseller_info(uid)
         await msg.answer(
@@ -162,7 +171,10 @@ def build_user_router() -> Router:
 
     @r.message(Command("key"))
     @r.message(F.text == t("btn_my_key"))
-    async def msg_my_key(msg: Message, svc: Service, settings: Settings, bot: Bot) -> None:
+    async def msg_my_key(
+        msg: Message, svc: Service, settings: Settings, state: FSMContext, bot: Bot
+    ) -> None:
+        await state.clear()
         uid = msg.from_user.id if msg.from_user else msg.chat.id
         keys = await svc.list_keys(uid)
         if not keys:
@@ -175,11 +187,15 @@ def build_user_router() -> Router:
 
     @r.message(Command("guide"))
     @r.message(F.text == t("btn_guide"))
-    async def msg_guide(msg: Message, bot: Bot, settings: Settings, svc: Service) -> None:
+    async def msg_guide(
+        msg: Message, bot: Bot, settings: Settings, svc: Service, state: FSMContext
+    ) -> None:
+        await state.clear()
         await send_outline_guide(bot, msg.chat.id, settings, svc)
 
     @r.message(F.text.in_({t("btn_support"), t("exabyte_btn_support")}))
-    async def msg_support(msg: Message, settings: Settings) -> None:
+    async def msg_support(msg: Message, settings: Settings, state: FSMContext) -> None:
+        await state.clear()
         await msg.answer(
             branded(t("support_body")), parse_mode="HTML", reply_markup=support_kb(settings)
         )
@@ -228,7 +244,7 @@ def build_user_router() -> Router:
                 chat_id, branded(e.message()), parse_mode="HTML", reply_markup=back_home_kb()
             )
             return
-        except PanelUnavailable:
+        except (PanelUnavailable, XUIError):
             await bot.send_message(
                 chat_id, branded(t("panel_down")), parse_mode="HTML", reply_markup=back_home_kb()
             )
@@ -331,7 +347,7 @@ def build_user_router() -> Router:
                 chat_id, branded(e.message()), parse_mode="HTML", reply_markup=back_home_kb()
             )
             return
-        except PanelUnavailable:
+        except (PanelUnavailable, XUIError):
             await bot.send_message(
                 chat_id, branded(t("panel_down")), parse_mode="HTML", reply_markup=back_home_kb()
             )

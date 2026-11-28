@@ -181,7 +181,7 @@ async def test_start_help_myid_and_menus(svc: Service, tmp_path):
     assert HEADER in welcome.text
     assert "Exabyte VPN Service" in welcome.text
     assert "5GB" in welcome.text
-    btn_texts = [b.text for row in welcome.reply_markup.inline_keyboard for b in row]
+    btn_texts = [b.text for row in welcome.reply_markup.keyboard for b in row]
     assert "💶 Plan ဝယ်မည်" in btn_texts
     assert "💬 Admin နှင့်စကားပြောမည်" in btn_texts
     assert all("ကျွန်ုပ်၏ Key" not in txt for txt in btn_texts)

@@ -96,7 +96,9 @@ async def test_first_bot_keeps_persistent_keyboard_without_join(svc, tmp_path):
     await send(USER, "/start")
     sent = session.sent_to(USER)
     assert len(sent) == 1
-    assert sent[-1].reply_markup.inline_keyboard
+    keyboard = sent[-1].reply_markup
+    assert isinstance(keyboard, ReplyKeyboardMarkup)
+    assert keyboard.is_persistent and not keyboard.one_time_keyboard
     await send(USER, S["btn_trial"])
     assert await svc.get_key(USER)
     assert not any(isinstance(call, GetChatMember) for call in session.calls)
