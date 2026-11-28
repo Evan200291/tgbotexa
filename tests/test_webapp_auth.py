@@ -328,3 +328,30 @@ async def test_webapp_reseller_and_balance_api(svc: Service, user: int):
         assert st["balance_mmk"] == 21600
         assert st["has_key"] is True
 
+
+async def test_sg_trial_succeeds_even_when_primary_panel_auth_fails(svc: Service, user: int):
+    panel2 = MockPanel(base_path="secPathSG", port=27563, method="aes-256-gcm")
+    t2 = FlakyTransport(httpx.ASGITransport(app=panel2.app))
+    xui2 = XUIClient(
+        f"http://mocksg/{panel2.base_path}", panel2.username, panel2.password, transport=t2
+    )
+    await svc.add_panel(
+        ADMIN,
+        name="Singapore (SG)",
+        base_url=f"http://mocksg/{panel2.base_path}",
+        username=panel2.username,
+        password=panel2.password,
+        server_host="sgsep.lhpvpn.online",
+        client_override=xui2,
+    )
+    # Simulate primary (tpone) panel being completely unreachable / 404 auth failure
+    svc._inbound = None
+    svc.xui._logged_in = False
+    svc.xui._password = "wrong-password"
+
+    kv = await svc.claim_trial(user)
+    assert kv.panel_id == 1
+    assert "sgsep.lhpvpn.online:27563" in kv.link
+    assert panel2.client(kv.email) is not None
+
+

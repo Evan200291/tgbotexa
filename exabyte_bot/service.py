@@ -318,7 +318,14 @@ class Service:
                     total_bytes=quota,
                     expiry_ms=expiry_ms,
                     limit_ip=limit_ip,
-                    enable=enable and (comment != "trial" or not self.trial_host or r["server_host"] == self.trial_host),
+                    enable=(
+                        enable
+                        and (
+                            comment != "trial"
+                            or not self.trial_host
+                            or r["server_host"] == self.trial_host
+                        )
+                    ),
                     tg_id=tg_id,
                     sub_id=sub_id,
                     comment=comment,
@@ -580,14 +587,14 @@ class Service:
         keys = set(row.keys())
         pid = int(row["panel_id"]) if "panel_id" in keys and row["panel_id"] is not None else 0
         ms = bool(row["multi_server"]) if "multi_server" in keys else True
-        links = [
-            {
+        links: list[dict[str, Any]] = []
+        if self._inbound is not None:
+            links.append({
                 "panel_id": 0,
                 "name": "Server 1 (Primary)",
                 "host": self.server_host,
                 "link": self.link_for(pw, email, 0),
-            }
-        ]
+            })
         extra = await self.db.fetchall("SELECT * FROM panels WHERE enabled=1 ORDER BY id")
         for idx, p in enumerate(extra, start=2):
             ib = Inbound(
@@ -652,7 +659,10 @@ class Service:
         return ClientSpec(
             email=email, password=password, method=client_method_for(self.inbound.method),
             total_bytes=quota, expiry_ms=expiry_ms, limit_ip=limit_ip,
-            enable=enable and not (comment == "trial" and self.trial_host and self.server_host != self.trial_host),
+            enable=(
+                enable
+                and not (comment == "trial" and self.trial_host and self.server_host != self.trial_host)
+            ),
             tg_id=tg_id, sub_id=sub_id, comment=comment,
         )
 
@@ -727,14 +737,21 @@ class Service:
 
     # ----- trial
     async def claim_trial(self, tg_id: int, *, is_admin: bool = False) -> KeyView:
-        await self._ensure_inbound()
+        await self._refresh_panels_cache()
+        enabled_panels = [
+            pid for pid, panel in self._panels_cache.items()
+            if panel["enabled"] and (not self.trial_host or panel["server_host"] == self.trial_host)
+        ]
+        if not enabled_panels and self.trial_host and self.server_host != self.trial_host:
+            raise PanelUnavailable("Singapore trial panel is unavailable")
+        sg_pid = min(enabled_panels) if enabled_panels else 0
+        if sg_pid == 0:
+            await self._ensure_inbound()
+        elif self._inbound is None:
+            with contextlib.suppress(PanelUnavailable, PanelAuthError):
+                await self._ensure_inbound()
         async with self._lock(tg_id):
             now = self.now()
-            enabled_panels = [pid for pid, panel in self._panels_cache.items()
-                              if panel["enabled"] and (not self.trial_host or panel["server_host"] == self.trial_host)]
-            if not enabled_panels and self.trial_host and self.server_host != self.trial_host:
-                raise PanelUnavailable("Singapore trial panel is unavailable")
-            sg_pid = min(enabled_panels) if enabled_panels else 0
             if not is_admin:
                 info = await self.trial_info(tg_id)
                 if info["reason"] == "paid_active":
@@ -747,29 +764,51 @@ class Service:
                     "SELECT * FROM subscriptions WHERE user_id=?", (tg_id,)
                 )
                 for old in old_trials:
-                    with contextlib.suppress(Exception):
-                        await self.xui.delete_client(self.inbound.id, old["xui_email"])
+                    if self._inbound is not None:
+                        with contextlib.suppress(Exception):
+                            await self.xui.delete_client(self.inbound.id, old["xui_email"])
                     await self._replicate_extra_panels("delete", email=old["xui_email"])
                 if old_trials:
                     async with self.db.transaction() as tx:
                         await tx.execute("DELETE FROM subscriptions WHERE user_id=?", (tg_id,))
 
-            email, password, sub_id = new_client_email(tg_id), generate_password(
-                self.inbound.method), new_sub_id()
+            method = (
+                str(self._panels_cache[sg_pid]["method"])
+                if sg_pid > 0
+                else self.inbound.method
+            )
+            email, password, sub_id = (
+                new_client_email(tg_id),
+                generate_password(method),
+                new_sub_id(),
+            )
             quota = P.TRIAL_QUOTA_GB * GB
             expiry = -P.TRIAL_DAYS * MS_PER_DAY
-            await self.xui.add_client(self.inbound.id, self._spec(
-                tg_id, email, password, sub_id, quota, expiry, limit_ip=1, comment="trial"))
-            try:
+            if sg_pid > 0:
                 await self._replicate_extra_panels(
                     "add", tg_id=tg_id, email=email, password=password, sub_id=sub_id,
                     quota=quota, expiry_ms=expiry, limit_ip=1, comment="trial",
-                    required_panel_ids={sg_pid} if sg_pid else set(),
+                    required_panel_ids={sg_pid},
                 )
-            except PanelUnavailable:
-                with contextlib.suppress(XUIError):
-                    await self.xui.delete_client(self.inbound.id, email)
-                raise
+                if self._inbound is not None:
+                    with contextlib.suppress(Exception):
+                        await self.xui.add_client(self.inbound.id, self._spec(
+                            tg_id, email, password, sub_id, quota, expiry, limit_ip=1,
+                            comment="trial",
+                        ))
+            else:
+                await self.xui.add_client(self.inbound.id, self._spec(
+                    tg_id, email, password, sub_id, quota, expiry, limit_ip=1, comment="trial"))
+                try:
+                    await self._replicate_extra_panels(
+                        "add", tg_id=tg_id, email=email, password=password, sub_id=sub_id,
+                        quota=quota, expiry_ms=expiry, limit_ip=1, comment="trial",
+                        required_panel_ids=set(),
+                    )
+                except PanelUnavailable:
+                    with contextlib.suppress(XUIError):
+                        await self.xui.delete_client(self.inbound.id, email)
+                    raise
             async with self.db.transaction() as tx:
                 cur = await tx.execute(
                     "INSERT INTO subscriptions(user_id, kind, xui_email, password, sub_id, plan_id,"
@@ -1270,13 +1309,17 @@ class Service:
         Returns the refreshed keys so the jobs module can decide on notifications.
         """
         if self._inbound is None:
-            try:
+            with contextlib.suppress(PanelUnavailable, PanelAuthError):
                 await self._ensure_inbound()
-            except (PanelUnavailable, PanelAuthError):
-                return []
         subscriptions = await self.db.fetchall("SELECT * FROM subscriptions")
-        ib = await self.xui.get_inbound(self.inbound.id)
-        stats = traffic_from_stats(ib.client_stats)
+        ib: Inbound | None = None
+        stats: dict[str, Any] = {}
+        if self._inbound is not None:
+            try:
+                ib = await self.xui.get_inbound(self.inbound.id)
+                stats = traffic_from_stats(ib.client_stats)
+            except (PanelUnavailable, PanelAuthError) as exc:
+                log.warning("primary panel sync_usage skipped (%s)", exc)
 
         extra_stats: list[dict[str, Any]] = []
         for p in await self.db.fetchall("SELECT * FROM panels WHERE enabled=1 ORDER BY id"):
@@ -1284,6 +1327,9 @@ class Service:
                 c, eib = await self._get_extra_client(p)
                 remote_ib = await c.get_inbound(eib.id)
                 extra_stats.append(traffic_from_stats(remote_ib.client_stats))
+
+        if ib is None and not extra_stats:
+            return []
 
         now_ms = self._now_ms()
         refreshed: list[KeyView] = []
@@ -1313,12 +1359,14 @@ class Service:
                         (expiry, sub["id"]),
                     )
                 if expiry > 0 and any(t.expiry_ms != expiry for t in remote):
-                    spec = self._spec(
-                        sub["user_id"], email, sub["password"], sub["sub_id"],
-                        sub["quota_bytes"], expiry, 1, enable=bool(sub["enabled"]),
-                        comment=sub["plan_id"] or "",
-                    )
-                    await self.xui.update_client(ib.id, spec)
+                    if ib is not None:
+                        spec = self._spec(
+                            sub["user_id"], email, sub["password"], sub["sub_id"],
+                            sub["quota_bytes"], expiry, 1, enable=bool(sub["enabled"]),
+                            comment=sub["plan_id"] or "",
+                        )
+                        with contextlib.suppress(Exception):
+                            await self.xui.update_client(ib.id, spec)
                     await self._replicate_extra_panels(
                         "update", tg_id=sub["user_id"], email=email, password=sub["password"],
                         sub_id=sub["sub_id"], quota=sub["quota_bytes"], expiry_ms=expiry,
