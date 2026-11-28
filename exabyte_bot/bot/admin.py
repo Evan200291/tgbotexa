@@ -153,15 +153,18 @@ def _user_manage_kb(
 
 
 def _format_user_card(info: dict[str, Any]) -> str:
-    kv: KeyView | None = info["key"]
-    if kv is None:
+    keys_list: list[KeyView] = info.get("keys") or ([info["key"]] if info.get("key") else [])
+    if not keys_list:
         ksum = "မရှိပါ"
     else:
-        quota = "Unlimited" if kv.unlimited else fmt_bytes(kv.quota_bytes)
-        ksum = (
-            f"{kv.kind} ({kv.status}) • {fmt_bytes(kv.used_bytes)}/{quota} • "
-            f"exp {fmt_date(kv.expiry_ms)}"
-        )
+        parts: list[str] = []
+        for idx, kv in enumerate(keys_list, start=1):
+            quota = "Unlimited" if kv.unlimited else fmt_bytes(kv.quota_bytes)
+            parts.append(
+                f"#{idx} <code>{escape(kv.email)}</code> • {kv.kind} ({kv.status}) • "
+                f"{fmt_bytes(kv.used_bytes)}/{quota} • exp {fmt_date(kv.expiry_ms)}"
+            )
+        ksum = "\n  " + "\n  ".join(parts)
     base = t(
         "adm_user_card",
         user_id=info["user_id"],

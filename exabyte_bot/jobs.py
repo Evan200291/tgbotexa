@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from html import escape
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError
@@ -14,7 +15,7 @@ from .bot.messages import back_home_kb, branded, format_order_approved_message
 from .config import Settings
 from .service import KeyView, Service, ServiceError
 from .strings import t
-from .util import fmt_bytes, fmt_date
+from .util import fmt_bytes, fmt_date, to_ms
 from .xui import PanelUnavailable
 
 log = logging.getLogger(__name__)
@@ -81,9 +82,63 @@ async def retry_queued_approvals(svc: Service, bot: Bot) -> int:
     return done
 
 
-async def run_sync_and_notify_once(svc: Service, bot: Bot) -> None:
+async def check_and_alert_panels(
+    svc: Service,
+    bot: Bot,
+    settings: Settings | None,
+    *,
+    state: dict[str, int] | None = None,
+    repeat_sec: int = 1800,
+) -> list[dict[str, object]]:
+    """Probe all configured 3X-UI panels and alert admins on Telegram if any panel is unreachable."""
+    results = await svc.check_panels_health()
+    if settings is None or not settings.admin_ids:
+        return results
+    alert_state = state if state is not None else {}
+    now_s = int(svc.now().timestamp())
+    now_str = fmt_date(to_ms(svc.now()))
+    for item in results:
+        key = str(item["key"])
+        name = escape(str(item["name"]))
+        host = escape(str(item["host"]))
+        if not item["ok"]:
+            last_sent = alert_state.get(key)
+            if last_sent is None or (now_s - last_sent) >= repeat_sec:
+                err_txt = escape(str(item.get("error") or "unreachable"))
+                msg = branded(
+                    f"🚨 <b>3X-UI Panel ချိတ်ဆက်၍ မရပါ!</b>\n"
+                    f"• Server: <b>{name}</b> (<code>{host}</code>)\n"
+                    f"• Error: <code>{err_txt}</code>\n"
+                    f"• အချိန်: <b>{now_str}</b>"
+                )
+                for aid in settings.admin_ids:
+                    with contextlib.suppress(Exception):
+                        await bot.send_message(aid, msg, parse_mode="HTML")
+                alert_state[key] = now_s
+        elif key in alert_state:
+            alert_state.pop(key, None)
+            msg = branded(
+                f"✅ <b>3X-UI Panel ပြန်လည် ချိတ်ဆက်မိပါပြီ!</b>\n"
+                f"• Server: <b>{name}</b> (<code>{host}</code>)\n"
+                f"• အချိန်: <b>{now_str}</b>"
+            )
+            for aid in settings.admin_ids:
+                with contextlib.suppress(Exception):
+                    await bot.send_message(aid, msg, parse_mode="HTML")
+    return results
+
+
+async def run_sync_and_notify_once(
+    svc: Service,
+    bot: Bot,
+    settings: Settings | None = None,
+    *,
+    panel_alert_state: dict[str, int] | None = None,
+) -> None:
     """Single pass of the ~5 minute maintenance loop (called directly in tests)."""
     await retry_queued_approvals(svc, bot)
+    if settings is not None:
+        await check_and_alert_panels(svc, bot, settings, state=panel_alert_state)
 
     try:
         await svc.sync_usage()
@@ -151,6 +206,7 @@ class BackgroundRunner:
         self.sync_interval_sec = sync_interval_sec
         self.backup_interval_sec = backup_interval_sec
         self._tasks: list[asyncio.Task[None]] = []
+        self._panel_alert_state: dict[str, int] = {}
 
     def start(self) -> None:
         self._tasks = [
@@ -169,7 +225,12 @@ class BackgroundRunner:
     async def _sync_loop(self) -> None:
         while True:
             try:
-                await run_sync_and_notify_once(self.svc, self.bot)
+                await run_sync_and_notify_once(
+                    self.svc,
+                    self.bot,
+                    self.settings,
+                    panel_alert_state=self._panel_alert_state,
+                )
             except Exception:
                 log.exception("unexpected error in sync loop")
             await asyncio.sleep(self.sync_interval_sec)

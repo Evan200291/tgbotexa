@@ -136,7 +136,7 @@ async def test_trial_claim_creates_panel_client(svc: Service, user, panel: MockP
     assert c is not None
     assert c["totalGB"] == 5 * GB and c["limitIp"] == 1 and c["tgId"] == USER
     assert c["expiryTime"] == -7 * MS_PER_DAY
-    assert key.email.startswith(f"tg{USER}-") and key.status == "active"
+    assert key.email.startswith("alice-") and key.status == "active"
     assert key.link.startswith("ss://") and "vpn.example.test:34567" in key.link
 
 

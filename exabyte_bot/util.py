@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import secrets
 import string
 from collections.abc import Callable
@@ -73,8 +74,12 @@ def new_order_code() -> str:
     return "EX" + "".join(secrets.choice(_CODE_ALPHABET) for _ in range(6))
 
 
-def new_client_email(telegram_id: int) -> str:
+def new_client_email(telegram_id: int, username: str | None = None) -> str:
     suffix = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
+    if username:
+        clean = re.sub(r"[^A-Za-z0-9_]", "", username.lstrip("@"))[:20]
+        if clean:
+            return f"{clean}-{suffix}"
     return f"tg{telegram_id}-{suffix}"
 
 

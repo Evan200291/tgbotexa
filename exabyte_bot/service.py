@@ -778,7 +778,7 @@ class Service:
                 else self.inbound.method
             )
             email, password, sub_id = (
-                new_client_email(tg_id),
+                await self._client_email(tg_id),
                 generate_password(method),
                 new_sub_id(),
             )
@@ -852,7 +852,7 @@ class Service:
         is_multi = int(plan.multi_server)
         if sub is None:
             email, password, sub_id = (
-                new_client_email(tg_id),
+                await self._client_email(tg_id),
                 generate_password(ib.method),
                 new_sub_id(),
             )
@@ -1482,14 +1482,86 @@ class Service:
             "month_revenue": int(rev_month["s"]) if rev_month else 0,
         }
 
+    async def _client_email(self, tg_id: int) -> str:
+        row = await self.db.fetchone("SELECT username FROM users WHERE telegram_id=?", (tg_id,))
+        uname = str(row["username"]) if (row and row["username"]) else None
+        return new_client_email(tg_id, uname)
+
+    async def check_panels_health(self) -> list[dict[str, Any]]:
+        """Probe primary and all enabled extra 3X-UI panels; returns status for admin alerting."""
+        results: list[dict[str, Any]] = []
+        # 1. Primary panel
+        try:
+            ib = await self._ensure_inbound()
+            await self.xui.get_inbound(ib.id)
+            results.append({
+                "key": "panel:0",
+                "name": "Primary Server",
+                "host": self.server_host,
+                "ok": True,
+                "error": "",
+            })
+        except Exception as exc:
+            results.append({
+                "key": "panel:0",
+                "name": "Primary Server",
+                "host": self.server_host,
+                "ok": False,
+                "error": str(exc) or type(exc).__name__,
+            })
+
+        # 2. Enabled extra panels (e.g. Singapore sgsep)
+        for p in await self.db.fetchall("SELECT * FROM panels WHERE enabled=1 ORDER BY id"):
+            pid = int(p["id"])
+            pname = str(p["name"] or f"Server {pid}")
+            phost = str(p["server_host"] or "-")
+            try:
+                c, eib = await self._get_extra_client(p)
+                await c.get_inbound(eib.id)
+                results.append({
+                    "key": f"panel:{pid}",
+                    "name": pname,
+                    "host": phost,
+                    "ok": True,
+                    "error": "",
+                })
+            except Exception as exc:
+                results.append({
+                    "key": f"panel:{pid}",
+                    "name": pname,
+                    "host": phost,
+                    "ok": False,
+                    "error": str(exc) or type(exc).__name__,
+                })
+        return results
+
     async def find_user(self, query: str) -> dict[str, Any] | None:
         q = query.strip().lstrip("@")
+        if not q:
+            return None
+        u: aiosqlite.Row | None = None
         if q.isdigit():
             u = await self.db.fetchone("SELECT * FROM users WHERE telegram_id=?", (int(q),))
         else:
             u = await self.db.fetchone(
                 "SELECT * FROM users WHERE username = ? COLLATE NOCASE", (q,)
             )
+            if u is None:
+                sub = await self.db.fetchone(
+                    "SELECT user_id FROM subscriptions WHERE xui_email = ? COLLATE NOCASE "
+                    "OR xui_email LIKE ? COLLATE NOCASE ORDER BY id DESC LIMIT 1",
+                    (q, f"%{q}%"),
+                )
+                if sub is not None:
+                    u = await self.db.fetchone(
+                        "SELECT * FROM users WHERE telegram_id=?", (int(sub["user_id"]),)
+                    )
+            if u is None:
+                u = await self.db.fetchone(
+                    "SELECT * FROM users WHERE username LIKE ? COLLATE NOCASE "
+                    "ORDER BY last_seen_at DESC LIMIT 1",
+                    (f"%{q}%",),
+                )
         if not u:
             return None
         uid = int(u["telegram_id"])
@@ -1497,6 +1569,7 @@ class Service:
         u_keys = set(u.keys())
         is_res = bool(u["is_reseller"]) if "is_reseller" in u_keys else False
         bal = int(u["balance_mmk"] or 0) if "balance_mmk" in u_keys else 0
+        all_keys = await self.list_keys(uid)
         return {
             "user_id": uid,
             "username": u["username"] or "-",
@@ -1504,7 +1577,8 @@ class Service:
             "is_reseller": is_res,
             "balance_mmk": bal,
             "balance_text": fmt_mmk(bal),
-            "key": await self.get_key(uid),
+            "key": all_keys[-1] if all_keys else None,
+            "keys": all_keys,
             "order_count": int(oc["c"]) if oc else 0,
         }
 

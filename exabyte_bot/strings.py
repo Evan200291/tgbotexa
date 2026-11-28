@@ -319,7 +319,7 @@ S: dict[str, str] = {
         "• ယနေ့ ဝင်ငွေ: <b>{today_revenue}</b>\n"
         "• ယခုလ ဝင်ငွေ: <b>{month_revenue}</b>"
     ),
-    "adm_ask_find": "ရှာလိုသော Telegram ID (သို့) @username ကို ပို့ပေးပါ။",
+    "adm_ask_find": "ရှာလိုသော Telegram ID၊ @username (သို့) Key Email ကို ပို့ပေးပါ။",
     "adm_user_not_found": "သုံးစွဲသူ ရှာမတွေ့ပါ။",
     "adm_user_card": (
         "🔑 <b>သုံးစွဲသူ အချက်အလက်</b>\n"

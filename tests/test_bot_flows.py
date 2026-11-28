@@ -532,3 +532,44 @@ async def test_reseller_admin_setup_and_balance_purchase(svc: Service, tmp_path)
     assert len(await svc.list_keys(reseller_id)) == 2
 
 
+async def test_username_key_generation_search_and_panel_down_alert(svc: Service, tmp_path):
+    bot, session, settings, send_text, _, tap = _make_harness(svc, tmp_path)
+
+    # 1. User with username "alice" gets username-based key emails with unique random suffixes
+    await send_text(USER, "/start")
+    k1 = await svc.grant_plan(ADMIN, USER, "vpn_1m", target_sub_id=0)
+    k2 = await svc.grant_plan(ADMIN, USER, "vpn_1m", target_sub_id=0)
+    assert k1.email.startswith("alice-") and k2.email.startswith("alice-")
+    assert k1.email != k2.email  # unique suffix prevents duplicate emails in 3X-UI
+
+    # 2. Admin can search by key email OR by @username and sees the key emails
+    found_by_key = await svc.find_user(k1.email)
+    assert found_by_key is not None and found_by_key["user_id"] == USER
+    assert len(found_by_key["keys"]) == 2
+
+    await tap(ADMIN, "adm:find")
+    await send_text(ADMIN, k2.email)
+    card_txt = session.last_text(ADMIN)
+    assert k1.email in card_txt and k2.email in card_txt and "alice" in card_txt
+
+    # 3. Panel unreachable triggers admin Telegram alert, and recovery triggers recovery alert
+    alert_state: dict[str, int] = {}
+    orig_pw = svc.xui._password
+    svc.xui._logged_in = False
+    svc.xui._password = "broken-password"
+
+    await run_sync_and_notify_once(svc, bot, settings, panel_alert_state=alert_state)
+    assert "3X-UI Panel ချိတ်ဆက်၍ မရပါ" in session.last_text(ADMIN)
+
+    # Second run immediately after does NOT spam duplicate alert
+    cnt_before = len(session.sent_to(ADMIN))
+    await run_sync_and_notify_once(svc, bot, settings, panel_alert_state=alert_state)
+    assert len(session.sent_to(ADMIN)) == cnt_before
+
+    # Panel recovers -> admin gets recovery alert
+    svc.xui._password = orig_pw
+    await run_sync_and_notify_once(svc, bot, settings, panel_alert_state=alert_state)
+    assert "ပြန်လည် ချိတ်ဆက်မိပါပြီ" in session.last_text(ADMIN)
+
+
+
