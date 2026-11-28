@@ -41,25 +41,19 @@ _GUIDE_FILE_IDS: dict[int, str] = {}
 async def send_welcome(bot: Bot, chat_id: int, svc: Service, settings: Settings,
                        user_id: int) -> None:
     res = await svc.get_reseller_info(user_id)
-    if settings.is_exabyte_bot:
-        body = t("exabyte_welcome_body")
-        if res["is_reseller"]:
-            body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
-        await bot.send_message(
-            chat_id,
-            branded(body),
-            parse_mode="HTML",
-            reply_markup=reply_menu_kb(settings),
-        )
-        return
-    body = t("welcome_body", store=escape(settings.store_name))
+    body = (
+        t("exabyte_welcome_body")
+        if settings.is_exabyte_bot
+        else t("welcome_body", store=escape(settings.store_name))
+    )
     if res["is_reseller"]:
         body += "\n" + t("reseller_wallet_banner", balance=res["balance_text"])
-    animation = WELCOME_ASSETS_DIR / "outlineplus.gif"
-    await bot.send_animation(chat_id, FSInputFile(animation), caption=branded(body),
-                             parse_mode="HTML", reply_markup=main_menu_kb(settings))
-    await bot.send_message(chat_id, "⬇️ အောက်ပါ မီနူးကိုလည်း အသုံးပြုနိုင်ပါသည်။",
-                           reply_markup=reply_menu_kb(settings))
+    await bot.send_message(
+        chat_id,
+        branded(body),
+        parse_mode="HTML",
+        reply_markup=reply_menu_kb(settings),
+    )
 
 
 async def send_outline_guide(bot: Bot, chat_id: int, settings: Settings, svc: Service) -> None:

@@ -149,22 +149,12 @@ def build_payments_router() -> Router:
             )
             return
         panels = [p for p in await svc.list_panels() if p["enabled"]]
-        need_server_pick = len(panels) > 1 and (
-            settings.is_exabyte_bot or not plan.multi_server
-        )
-        if need_server_pick:
-            srv_prompt_key = (
-                "exabyte_plan_choose_server"
-                if settings.is_exabyte_bot
-                else "plan_choose_server"
-            )
+        if len(panels) > 1:
             await bot.send_message(
                 chat_id,
-                branded(t(srv_prompt_key, plan_name=plan.name)),
+                branded(t("exabyte_plan_choose_server", plan_name=plan.name)),
                 parse_mode="HTML",
-                reply_markup=plan_server_kb(
-                    plan.id, 0, panels, exabyte_ui=settings.is_exabyte_bot
-                ),
+                reply_markup=plan_server_kb(plan.id, 0, panels, exabyte_ui=True),
             )
             return
         await _finalize_order_creation(
@@ -190,22 +180,12 @@ def build_payments_router() -> Router:
         uid = cb.from_user.id
         chat_id = cb.message.chat.id if cb.message else uid
         panels = [p for p in await svc.list_panels() if p["enabled"]]
-        need_server_pick = target_sub_id == 0 and len(panels) > 1 and (
-            settings.is_exabyte_bot or not plan.multi_server
-        )
-        if need_server_pick:
-            srv_prompt_key = (
-                "exabyte_plan_choose_server"
-                if settings.is_exabyte_bot
-                else "plan_choose_server"
-            )
+        if target_sub_id == 0 and len(panels) > 1:
             await bot.send_message(
                 chat_id,
-                branded(t(srv_prompt_key, plan_name=plan.name)),
+                branded(t("exabyte_plan_choose_server", plan_name=plan.name)),
                 parse_mode="HTML",
-                reply_markup=plan_server_kb(
-                    plan.id, target_sub_id, panels, exabyte_ui=settings.is_exabyte_bot
-                ),
+                reply_markup=plan_server_kb(plan.id, target_sub_id, panels, exabyte_ui=True),
             )
             return
         await _finalize_order_creation(

@@ -169,35 +169,21 @@ def _format_plan_line(p: P.Plan, *, is_reseller: bool = False) -> str:
 def format_plans_message(
     *, is_reseller: bool = False, balance_mmk: int = 0, exabyte_ui: bool = False
 ) -> str:
-    if exabyte_ui:
-        unlim = P.plans_in("vpn", exabyte=True)
-        gb = P.plans_in("vpn_gb", exabyte=True)
-        lines: list[str] = []
-        if is_reseller:
-            lines.append(t("reseller_wallet_banner", balance=fmt_mmk(balance_mmk)).strip() + "\n")
-        lines.append("🩵 <b>ပြထားသော packages များထဲမှ ဝယ်ယူနိုင်သည်။</b>\n")
-        lines.append("🟢 <b>Unlimited traffic</b> <i>(Device 1 လုံးတည်းအတွက်သာ)</i>")
-        for p in unlim:
-            price = fmt_mmk(p.price_for(is_reseller=is_reseller))
-            lines.append(f"• <b>{p.months} month</b> - <b>{price}</b>")
-        lines.append("")
-        lines.append("🟩 <b>GB Limit Plan</b> <i>(Device Limit မရှိ။)</i>")
-        for p in gb:
-            price = fmt_mmk(p.price_for(is_reseller=is_reseller))
-            lines.append(f"• <b>{p.months} month</b> - <b>{p.quota_gb}GB</b> - <b>{price}</b>")
-        return branded("\n".join(lines))
-
-    lines = [t("plans_header")]
+    unlim = P.plans_in("vpn", exabyte=exabyte_ui)
+    gb = P.plans_in("vpn_gb", exabyte=exabyte_ui)
+    lines: list[str] = []
     if is_reseller:
-        lines.insert(0, t("reseller_wallet_banner", balance=fmt_mmk(balance_mmk)).strip() + "\n")
-    for p in P.plans_in("vpn"):
-        lines.append(_format_plan_line(p, is_reseller=is_reseller))
-    gb_plans = P.plans_in("vpn_gb")
-    if gb_plans:
-        lines.append("")
-        lines.append(t("plans_gb_header"))
-        for p in gb_plans:
-            lines.append(_format_plan_line(p, is_reseller=is_reseller))
+        lines.append(t("reseller_wallet_banner", balance=fmt_mmk(balance_mmk)).strip() + "\n")
+    lines.append("🩵 <b>ပြထားသော packages များထဲမှ ဝယ်ယူနိုင်သည်။</b>\n")
+    lines.append("🟢 <b>Unlimited traffic</b> <i>(Device 1 လုံးတည်းအတွက်သာ)</i>")
+    for p in unlim:
+        price = fmt_mmk(p.price_for(is_reseller=is_reseller))
+        lines.append(f"• <b>{p.months} month</b> - <b>{price}</b>")
+    lines.append("")
+    lines.append("🟩 <b>GB Limit Plan</b> <i>(Device Limit မရှိ။)</i>")
+    for p in gb:
+        price = fmt_mmk(p.price_for(is_reseller=is_reseller))
+        lines.append(f"• <b>{p.months} month</b> - <b>{p.quota_gb}GB</b> - <b>{price}</b>")
     return branded("\n".join(lines))
 
 
@@ -209,9 +195,8 @@ def format_order_message(
     balance_mmk: int = 0,
 ) -> str:
     plan = order.plan
-    tmpl_key = "exabyte_order_created" if settings.is_exabyte_bot else "order_created"
     body = t(
-        tmpl_key,
+        "exabyte_order_created",
         plan_name=plan.name,
         days=plan.days,
         code=order.code,
@@ -227,124 +212,71 @@ def format_order_message(
 # ---------------------------------------------------------------- keyboards
 def reply_menu_kb(settings: Settings) -> ReplyKeyboardMarkup:
     """Persistent bottom reply keyboard (below the typing text bar), 2 buttons per row."""
-    if settings.is_exabyte_bot:
-        rows: list[list[KeyboardButton]] = [
-            [
-                KeyboardButton(text=t("btn_trial")),
-                KeyboardButton(text=t("exabyte_btn_buy")),
-            ],
-        ]
-        if settings.bot_domain:
-            rows.append([
-                KeyboardButton(text=t("btn_guide")),
-                KeyboardButton(
-                    text=t("exabyte_btn_open_app"),
-                    web_app=WebAppInfo(url=f"https://{settings.bot_domain}"),
-                ),
-            ])
-        else:
-            rows.append([
-                KeyboardButton(text=t("btn_guide")),
-            ])
-        rows.append([
-            KeyboardButton(text=t("exabyte_btn_support")),
-        ])
-        return ReplyKeyboardMarkup(
-            keyboard=rows,
-            resize_keyboard=True,
-            is_persistent=True,
-            one_time_keyboard=False,
-            input_field_placeholder="အောက်ပါ မီနူးမှ ရွေးပါ",
-        )
-
-    rows = [
+    rows: list[list[KeyboardButton]] = [
         [
             KeyboardButton(text=t("btn_trial")),
-            KeyboardButton(text=t("btn_buy")),
-        ],
-        [
-            KeyboardButton(text=t("btn_my_key")),
-            KeyboardButton(text=t("btn_guide")),
+            KeyboardButton(text=t("exabyte_btn_buy")),
         ],
     ]
     if settings.bot_domain:
         rows.append([
+            KeyboardButton(text=t("btn_guide")),
             KeyboardButton(
-                text=t("btn_open_app"),
+                text=t("exabyte_btn_open_app"),
                 web_app=WebAppInfo(url=f"https://{settings.bot_domain}"),
             ),
-            KeyboardButton(text=t("btn_support")),
         ])
     else:
         rows.append([
-            KeyboardButton(text=t("btn_support")),
-            KeyboardButton(text=t("btn_home")),
+            KeyboardButton(text=t("btn_guide")),
         ])
-    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, is_persistent=True,
-        one_time_keyboard=False, input_field_placeholder="အောက်ပါ မီနူးမှ ရွေးပါ")
+    rows.append([
+        KeyboardButton(text=t("exabyte_btn_support")),
+    ])
+    return ReplyKeyboardMarkup(
+        keyboard=rows,
+        resize_keyboard=True,
+        is_persistent=True,
+        one_time_keyboard=False,
+        input_field_placeholder="အောက်ပါ မီနူးမှ ရွေးပါ",
+    )
 
 
 def main_menu_kb(settings: Settings) -> InlineKeyboardMarkup:
-    if settings.is_exabyte_bot:
-        rows: list[list[InlineKeyboardButton]] = [
-            [
-                InlineKeyboardButton(text=t("btn_trial"), callback_data="nav:trial"),
-                InlineKeyboardButton(text=t("exabyte_btn_buy"), callback_data="nav:plans"),
-            ],
-        ]
-        if settings.bot_domain:
-            rows.append([
-                InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide"),
-                InlineKeyboardButton(
-                    text=t("exabyte_btn_open_app"),
-                    web_app=WebAppInfo(url=f"https://{settings.bot_domain}"),
-                ),
-            ])
-        else:
-            rows.append([
-                InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide"),
-            ])
-        rows.append([
-            InlineKeyboardButton(text=t("exabyte_btn_support"), callback_data="nav:support"),
-        ])
-        return InlineKeyboardMarkup(inline_keyboard=rows)
-
-    rows = [
+    rows: list[list[InlineKeyboardButton]] = [
         [
             InlineKeyboardButton(text=t("btn_trial"), callback_data="nav:trial"),
-            InlineKeyboardButton(text=t("btn_buy"), callback_data="nav:plans"),
-        ],
-        [
-            InlineKeyboardButton(text=t("btn_my_key"), callback_data="nav:key"),
-            InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide"),
+            InlineKeyboardButton(text=t("exabyte_btn_buy"), callback_data="nav:plans"),
         ],
     ]
     if settings.bot_domain:
         rows.append([
+            InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide"),
             InlineKeyboardButton(
-                text=t("btn_open_app"),
+                text=t("exabyte_btn_open_app"),
                 web_app=WebAppInfo(url=f"https://{settings.bot_domain}"),
             ),
-            InlineKeyboardButton(text=t("btn_support"), callback_data="nav:support"),
         ])
     else:
         rows.append([
-            InlineKeyboardButton(text=t("btn_support"), callback_data="nav:support"),
+            InlineKeyboardButton(text=t("btn_guide"), callback_data="nav:guide"),
         ])
+    rows.append([
+        InlineKeyboardButton(text=t("exabyte_btn_support"), callback_data="nav:support"),
+    ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _server_button_label(p: dict[str, object], *, exabyte_ui: bool = False) -> str:
-    if exabyte_ui:
-        host = str(p.get("server_host") or "").lower()
-        name = str(p.get("name") or "").lower()
-        pid = int(p.get("id") or 0)  # type: ignore[arg-type]
-        if "sgsep" in host or "singapore" in name or "sg" in name:
-            return "🇸🇬 Singapore Server"
-        if "tpone" in host or "thailand" in name or "bangkok" in name or pid == 0:
-            return "🇹🇭 Thailand Server (Bangkok)"
-        return f"🌐 {p['name']}"
-    return f"🌐 {p['name']} ({p['server_host']})"
+def _server_button_label(p: dict[str, object], *, exabyte_ui: bool = True) -> str:
+    del exabyte_ui
+    host = str(p.get("server_host") or "").lower()
+    name = str(p.get("name") or "").lower()
+    pid = int(p.get("id") or 0)  # type: ignore[arg-type]
+    if "sgsep" in host or "singapore" in name or "sg" in name:
+        return "🇸🇬 Singapore Server"
+    if "tpone" in host or "thailand" in name or "bangkok" in name or pid == 0:
+        return "🇹🇭 Thailand Server (Bangkok)"
+    return f"🌐 {p['name']}"
 
 
 def back_home_kb() -> InlineKeyboardMarkup:
@@ -401,46 +333,20 @@ def key_server_switch_kb(
 
 
 def plans_kb(*, is_reseller: bool = False, exabyte_ui: bool = False) -> InlineKeyboardMarkup:
+    del is_reseller
     unlim = P.plans_in("vpn", exabyte=exabyte_ui)
     gb = P.plans_in("vpn_gb", exabyte=exabyte_ui)
     rows: list[list[InlineKeyboardButton]] = []
     if len(unlim) == len(gb) and gb:
         for u_plan, g_plan in zip(unlim, gb, strict=False):
-            u_text = (
-                u_plan.name
-                if exabyte_ui
-                else t(
-                    "btn_select_plan",
-                    name=u_plan.name,
-                    price=fmt_mmk(u_plan.price_for(is_reseller=is_reseller)),
-                )
-            )
-            g_text = (
-                g_plan.name
-                if exabyte_ui
-                else t(
-                    "btn_select_plan",
-                    name=g_plan.name,
-                    price=fmt_mmk(g_plan.price_for(is_reseller=is_reseller)),
-                )
-            )
             rows.append([
-                InlineKeyboardButton(text=u_text, callback_data=f"plan:{u_plan.id}"),
-                InlineKeyboardButton(text=g_text, callback_data=f"plan:{g_plan.id}"),
+                InlineKeyboardButton(text=u_plan.name, callback_data=f"plan:{u_plan.id}"),
+                InlineKeyboardButton(text=g_plan.name, callback_data=f"plan:{g_plan.id}"),
             ])
     else:
         for p in P.all_plans(exabyte=exabyte_ui):
-            p_text = (
-                p.name
-                if exabyte_ui
-                else t(
-                    "btn_select_plan",
-                    name=p.name,
-                    price=fmt_mmk(p.price_for(is_reseller=is_reseller)),
-                )
-            )
             rows.append([
-                InlineKeyboardButton(text=p_text, callback_data=f"plan:{p.id}")
+                InlineKeyboardButton(text=p.name, callback_data=f"plan:{p.id}")
             ])
     rows.append([InlineKeyboardButton(text=t("back"), callback_data="nav:home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -515,22 +421,15 @@ def order_created_kb(
 
 
 def guide_menu_kb(settings: Settings | None = None) -> InlineKeyboardMarkup:
+    del settings
     from ..downloads import APP_STORE_URL, MAC_URL, PLAY_STORE_URL, WINDOWS_URL
-    bottom_row = (
-        [InlineKeyboardButton(text=t("back"), callback_data="nav:home")]
-        if (settings and settings.is_exabyte_bot)
-        else [
-            InlineKeyboardButton(text=t("btn_my_key"), callback_data="nav:key"),
-            InlineKeyboardButton(text=t("back"), callback_data="nav:home"),
-        ]
-    )
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬇️ Android Download", callback_data="download:apk")],
         [InlineKeyboardButton(text="Google Play", url=PLAY_STORE_URL),
          InlineKeyboardButton(text="App Store", url=APP_STORE_URL)],
         [InlineKeyboardButton(text="Windows Download", url=WINDOWS_URL),
          InlineKeyboardButton(text="Mac App Store", url=MAC_URL)],
-        bottom_row,
+        [InlineKeyboardButton(text=t("back"), callback_data="nav:home")],
     ])
 
 
